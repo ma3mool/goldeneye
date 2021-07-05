@@ -1,0 +1,3 @@
+[submodule "pytorchfi"]
+	path = pytorchfi
+	url = https://github.com/pytorchfi/pytorchfi.git
