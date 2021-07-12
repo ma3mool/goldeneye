@@ -1,5 +1,19 @@
-import sys
+import sys, os, bz2
 import argparse
+import pickle as cPickle
+import pandas as pd
+import torch
+import torchvision
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+import torchvision.models as models
+import timm
+
+
+'''
+Environment Variables
+'''
+DATASETS = os.environ['ML_DATASETS']
 
 '''
 Helper functions to parse input
@@ -157,3 +171,151 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def getNetwork(networkName, DATASET):
+    ####### IMAGENET #######
+    if DATASET == 'IMAGENET':
+        FB_repo = 'facebookresearch/deit:main'
+        # Convolution Neural Networks
+        if networkName == "alexnet": MODEL = models.alexnet(pretrained=True, progress=True)
+        elif networkName == "vgg11": MODEL = models.vgg11(pretrained=True, progress=True)
+        elif networkName == "vgg13": MODEL = models.vgg13(pretrained=True, progress=True)
+        elif networkName == "vgg16": MODEL = models.vgg16(pretrained=True, progress=True)
+        elif networkName == "vgg19": MODEL = models.vgg19(pretrained=True, progress=True)
+        elif networkName == "vgg11_bn": MODEL = models.vgg11(pretrained=True, progress=True)
+        elif networkName == "vgg13_bn": MODEL = models.vgg13(pretrained=True, progress=True)
+        elif networkName == "vgg16_bn": MODEL = models.vgg16(pretrained=True, progress=True)
+        elif networkName == "vgg19_bn": MODEL = models.vgg19(pretrained=True, progress=True)
+        elif networkName == "resnet18": MODEL = models.resnet18(pretrained=True, progress=True)
+        elif networkName == "resnet34": MODEL = models.resnet34(pretrained=True, progress=True)
+        elif networkName == "resnet50": MODEL = models.resnet50(pretrained=True, progress=True)
+        elif networkName == "resnet101": MODEL = models.resnet101(pretrained=True, progress=True)
+        elif networkName == "resnet152": MODEL = models.resnet152(pretrained=True, progress=True)
+        elif networkName == "squeezenet1_0": MODEL = models.squeezenet1_0(pretrained=True, progress=True)
+        elif networkName == "squeezenet1_1": MODEL = models.squeezenet1_1(pretrained=True, progress=True)
+        elif networkName == "densenet121": MODEL = models.densenet121(pretrained=True, progress=True)
+        elif networkName == "densenet169": MODEL = models.densenet169(pretrained=True, progress=True)
+        elif networkName == "densenet201": MODEL = models.densenet201(pretrained=True, progress=True)
+        elif networkName == "densenet161": MODEL = models.densenet161(pretrained=True, progress=True)
+        elif networkName == "inceptionv3": MODEL = models.inception_v3(pretrained=True, progress=True)
+        elif networkName == "googlenet": MODEL = models.googlenet(pretrained=True, progress=True)
+        elif networkName == "shufflenet": MODEL = models.shufflenet_v2_x1_0(pretrained=True, progress=True)
+        elif networkName == "mobilenet": MODEL = models.mobilenet_v2(pretrained=True, progress=True)
+        elif networkName == "resnext50_32x4d": MODEL = models.resnext50_32x4d(pretrained=True, progress=True)
+
+        # transformers
+        elif networkName == "vit_base": MODEL = timm.create_model("vit_base_patch16_224", pretrained=True)
+        elif networkName == "deit_base": MODEL = torch.hub.load(FB_repo, 'deit_base_patch16_224', pretrained=True)
+        elif networkName == "deit_tiny": MODEL = torch.hub.load(FB_repo, 'deit_tiny_patch16_224', pretrained=True)
+
+        # Error
+        else:
+            sys.exit("Network does not exist")
+
+    # model upgrades
+    if getPrecision() == 'FP16':
+        MODEL = MODEL.half()
+    if getCUDA_en():
+        MODEL = MODEL.cuda()
+
+    return MODEL
+
+def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False):
+    if DATASET == 'CIFAR10':
+        transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
+                ]
+            )
+        testset = IdCifar10(root='./data', train=training,
+                download=True, transform=transform)
+        test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
+                shuffle=shuffleIn, num_workers=workers, pin_memory=True)
+        dataiter = iter(test_loader)
+
+    elif DATASET == 'CIFAR100':
+        transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
+                 ]
+                )
+        testset = IdCifar100(root='./data', train=training,
+                download=True, transform=transform)
+        test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
+                shuffle=shuffleIn, num_workers=workers, pin_memory=True)
+        dataiter = iter(test_loader)
+
+    elif DATASET == 'IMAGENET':
+        if training == False:
+            valdir = os.path.join(DATASETS + '/imagenet/', 'val')
+        else:
+            valdir = os.path.join(DATASETS + '/imagenet/', 'train')
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225])
+        images = IdImageFolder(valdir, transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ]))
+        val_loader = torch.utils.data.DataLoader(images, batch_size=BATCH_SIZE, shuffle=shuffleIn, num_workers=workers, pin_memory=True)
+        dataiter = iter(val_loader)
+
+    return dataiter
+
+
+class IdImageFolder(datasets.ImageFolder):
+    def __getitem__(self, index):
+        item = super(IdImageFolder, self).__getitem__(index)
+        path = self.imgs[index][0]
+        return item[0], item[1], path, index
+
+
+#################################################################
+############## HELPER METHODS FOR IMG PROCESSING  ###############
+#################################################################
+def getMaxClass(tensor, dim=0):
+    argmax = torch.argmax(tensor).item()
+    conf = torch.max(tensor).item() * 100
+    top2 = torch.topk(tensor, k=2, dim=0)[0]
+    diff_top2 = (top2[0] - top2[1]) * 100
+    return argmax, conf, diff_top2.item()
+
+def getMaxClass_parallel(tensor_in, dim=0):
+    tensor = F.softmax(tensor_in)
+    argmax = torch.argmax(tensor).item()
+    conf = torch.max(tensor).item() * 100
+    top2 = torch.topk(tensor, k=2, dim=0)[0]
+    diff_top2 = (top2[0] - top2[1]) * 100
+    return argmax, conf, diff_top2.item()
+
+# from https://stackoverflow.com/questions/34968722/how-to-implement-the-softmax-function-in-python
+def softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum(axis=0)
+
+def diff_top2(data):
+    return (data[0] - data[1]).item() * 100
+
+
+#################################################################
+##################### HELPER METHODS FOR I/O ####################
+#################################################################
+def save_data(path, file_name, data, compress = True):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    output = path + file_name + ".p"
+    f = bz2.BZ2File(output + ".bz2","wb") if compress else open(fname,"wb")
+    cPickle.dump(data, f)
+    f.close()
+
+
+
+def load_file(file_name, compress = True):
+    f = bz2.BZ2File(file_name + '.p.bz2', "rb") if compress else open(file_name.strip('.p.bz2'),"rb")
+    fileIn= cPickle.load(f)
+    f.close()
+    return fileIn
