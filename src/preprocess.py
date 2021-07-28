@@ -22,7 +22,6 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
     processed_elements = 0
     batch_num = 0
 
-    count = 0
     for input_data in tqdm(data_iter):
 
         # prepare the next batch for inference
@@ -58,10 +57,6 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
         batch_num += 1
         torch.cuda.empty_cache()
 
-        count += 1
-        if count == 256:
-            break
-
     # remove hooks
     for i in range(len(handles)):
         handles[i].remove()
@@ -96,7 +91,7 @@ if __name__ == '__main__':
     ranges = actual_max.cpu().numpy().tolist()
 
     # save result
-    save_data(out_path, "ranges_trainset_layer")
+    save_data(out_path, "ranges_trainset_layer", ranges)
 
     # save CSV
     f = open(out_path + "ranges_trainset_layer.csv", "w+")
