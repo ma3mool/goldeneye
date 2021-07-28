@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 # goes through dataset and finds correctly classified images, and corresponding data
 @torch.no_grad()
-def gather_golden(model, data_iter, cuda_en=True, precision='FP16', verbose = False, debug=False):
+def gather_golden(model, data_iter, cuda_en=True, precision='FP16', verbose=False, debug=False):
     golden_data = {}
     processed_elements = 0
     good_imgs = 0
