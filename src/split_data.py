@@ -14,11 +14,11 @@ def gen_sets(golden_indices, split):
     return rank_set, test_set
 
 if __name__ == '__main__':
-    ### Read in cmd line args
+    # Read in cmd line args
     check_args(sys.argv[1:])
     if getDebug(): printArgs()
 
-    ### Common variables
+    # Common variables
     name = getDNN() + "_" + getDataset() + "_" + getPrecision()
     netProfilePath = getOutputDir() + "/networkProfiles/" + name + "/"
     outPath = getOutputDir() + "/data_subset/" + name + "/"
@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     split_ratio = .8
     
-    ### generate an Analysis Set (AS) and Deployment Set (DS)
+    # generate an Analysis Set (AS) and Deployment Set (DS)
     if "IMAGENET" in getDataset():  images_base = list(range(0,50000))
     elif "CIFAR" in getDataset():   images_base = list(range(0,10000))
     
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     save_data(outPath, "deployment_set", deployment_set)
     random.seed()  #back to randomness
 
-    ### generate a list from the correct images in AS and DS
+    # generate a list from the correct images in AS and DS
     ASgoodImgs = []
     DSgoodImgs = []
     for i in analysis_set:
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     save_data(outPath, "rank_set_good", ASgoodImgs)
     save_data(outPath, "test_set_good", DSgoodImgs)
 
-    ### CSVs of imgs
+    # CSVs of imgs
     f = open(outPath + "AS.csv", "w+")
     for i in range(len(analysis_set)):
         outputString = "%d\n" %(analysis_set[i])

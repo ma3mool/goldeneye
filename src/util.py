@@ -220,7 +220,7 @@ def getNetwork(networkName, DATASET):
 
     return MODEL
 
-def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False):
+def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False, include_id=True):
     if DATASET == 'CIFAR10':
         transform = transforms.Compose(
                 [
@@ -254,12 +254,16 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
             valdir = os.path.join(DATASETS + '/imagenet/', 'train')
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225])
-        images = IdImageFolder(valdir, transforms.Compose([
+        transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             normalize,
-        ]))
+        ])
+
+        if include_id: images = IdImageFolder(valdir, transform=transform)
+        else: images = datasets.ImageFolder(valdir, transform=transform)
+
         val_loader = torch.utils.data.DataLoader(images, batch_size=BATCH_SIZE, shuffle=shuffleIn, num_workers=workers, pin_memory=True)
         dataiter = iter(val_loader)
 

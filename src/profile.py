@@ -79,28 +79,28 @@ if __name__ == '__main__':
     check_args(sys.argv[1:])
     if getDebug(): printArgs()
 
-    ### common variables
+    # common variables
     name = getDNN() + "_" + getDataset() + "_" + getPrecision()
     range_path = getOutputDir() + "/networkRanges/" + name + "/"
     out_path = getOutputDir() + "/networkProfiles/" + name + "/"
     subset_path = getOutputDir() + "/data_subset/" + name + "/"
 
-    ### load data and model
+    # load data and model
     dataiter = load_dataset(getDataset(), getBatchsize(), workers = getWorkers())
     model = getNetwork(getDNN(), getDataset())
     model.eval()
     torch.no_grad()
 
-    ### Golden data gathering
+    # Golden data gathering
     golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(model, dataiter, \
             getBatchsize(), precision=getPrecision(), verbose=getVerbose(), debug=getDebug())
 
-    ### Golden data gathering
+    # Golden data gathering
     output_name = "golden_data"
     save_data(out_path, output_name, golden_data)
     df = save_data_df(out_path, output_name, golden_data)
 
-    ### Print Summary Statistics
+    # Print Summary Statistics
     if getVerbose():
         print("===========================================")
         print(name)
