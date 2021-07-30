@@ -1,5 +1,4 @@
 from util import *
-import random
 
 ''' 
 Randomizes and returns two lists. Split is between 0-1, and refers to the size of the rank set.

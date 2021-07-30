@@ -1,4 +1,4 @@
-import sys, os, bz2
+import sys, os, bz2, random
 import argparse
 import pickle as cPickle
 import pandas as pd
@@ -264,8 +264,70 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
         if include_id: images = IdImageFolder(valdir, transform=transform)
         else: images = datasets.ImageFolder(valdir, transform=transform)
 
-        val_loader = torch.utils.data.DataLoader(images, batch_size=BATCH_SIZE, shuffle=shuffleIn, num_workers=workers, pin_memory=True)
+        val_loader = torch.utils.data.DataLoader(images, batch_size=BATCH_SIZE,
+                                                 shuffle=shuffleIn, num_workers=workers, pin_memory=True)
         dataiter = iter(val_loader)
+
+    return dataiter
+
+
+# total_data refers to the total size of the data_loader, for all images desired
+def load_custom_dataset(NETWORK, DATASET, BATCH_SIZE, good_images, total_data,
+                        workers = 0, random=True, replacement=True, single=False, singleIndex=0):
+    if random:
+        if replacement:
+            if single == False:
+                custom_sampler = get_custom_sampler(good_images, total_data)
+            else:
+                custom_sampler = get_custom_sampler_single(good_images, singleIndex, total_data)
+
+        else:
+            custom_sampler = get_custom_sampler_no_replacement(good_images, total_data)
+    else:
+        custom_sampler = get_custom_sampler_full(good_images)
+
+    if DATASET == 'CIFAR10':
+            transform = transforms.Compose(
+                    [
+                     transforms.ToTensor(),
+                     transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
+                    ]
+            )
+
+            testset = IdCifar10(root='./data', train=False,
+                                               download=True, transform=transform)
+            test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
+                                            sampler=custom_sampler, num_workers=workers, pin_memory=True)
+            dataiter = iter(test_loader)
+
+    if DATASET == 'CIFAR100':
+            transform = transforms.Compose(
+                    [
+                     transforms.ToTensor(),
+                     transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
+                    ]
+            )
+
+            testset = IdCifar100(root='./data', train=False,
+                                               download=True, transform=transform)
+            test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
+                                            sampler=custom_sampler, num_workers=workers, pin_memory=True)
+            dataiter = iter(test_loader)
+
+    if DATASET == 'IMAGENET':
+
+            valdir = os.path.join(DATASETS + '/imagenet/', 'val')
+            normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                            std=[0.229, 0.224, 0.225])
+            images = IdImageFolder(valdir, transforms.Compose([
+                                                    transforms.Resize(256),
+                                                    transforms.CenterCrop(224),
+                                                    transforms.ToTensor(),
+                                                    normalize,
+                                    ]))
+            val_loader = torch.utils.data.DataLoader(images, batch_size=BATCH_SIZE,
+                    num_workers = workers, sampler=custom_sampler, pin_memory=True)
+            dataiter = iter(val_loader)
 
     return dataiter
 
@@ -275,6 +337,62 @@ class IdImageFolder(datasets.ImageFolder):
         item = super(IdImageFolder, self).__getitem__(index)
         path = self.imgs[index][0]
         return item[0], item[1], path, index
+
+class Custom_Sampler(torch.utils.data.Sampler):
+    def __init__(self, data):
+        self.data = data
+    def __iter__(self):
+        return iter(self.data)
+    def __len__(self):
+        return len(self.data)
+
+"""
+Edit this to make the random selector
+Input: list of good indices
+Return: list of indices that will be used to load data
+"""
+def random_selector(indices, total):
+    return random.choices(indices, k=total)
+
+def single_selector(indices, index, total):
+    single_index = [indices[index]]
+    return random.choices(single_index, k=total)
+
+def random_selector_no_replacement(indices, total):
+    return random.sample(indices, k=total)
+
+def get_custom_sampler(indices, total):
+    # Use random sampling with replacement
+    indices = random_selector(indices, total)
+
+    # Create custom sampler
+    sampler = Custom_Sampler(indices)
+
+    return sampler
+
+def get_custom_sampler_single(indices, index, total):
+    # Use random sampling with replacement
+    indices = single_selector(indices, index, total)
+
+    # Create custom sampler
+    sampler = Custom_Sampler(indices)
+
+    return sampler
+
+def get_custom_sampler_no_replacement(indices, total):
+    # Use random sampling with replacement
+    indices = random_selector_no_replacement(indices, total)
+
+    # Create custom sampler
+    sampler = Custom_Sampler(indices)
+
+    return sampler
+
+def get_custom_sampler_full(indices):
+    # Create custom sampler
+    sampler = Custom_Sampler(indices)
+
+    return sampler
 
 
 #################################################################

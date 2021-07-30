@@ -1,6 +1,55 @@
+import time
 import torch.nn as nn
 from util import *
-from pytorchfi.pytorchfi.core import fault_injection
+from pytorchfi.core import fault_injection
+from pytorchfi.error_models import *
+from tqdm import tqdm
+
+def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
+    dim = len(shape)
+    batch, layerArr, dim1, value = ([] for i in range(4))
+
+    if dim >= 2: dim2 = []
+    if dim >= 3: dim3 = []
+
+    for i in range(len(batch)):
+        batch.append(i)
+        layerArr.append(layer)
+        value.append(random_value(-1.0 * maxval, maxval))
+
+        dim1val = random.randint(0, shape[0])
+        dim1.append(dim1val)
+        if dim >= 2:
+            dim2val = random.randint(0, shape[1])
+            dim2.append(dim2val)
+        if dim >= 3:
+            dim3val = random.randint(0, shape[2])
+            dim3.append(dim3val)
+
+    if dim == 1:
+        return pfi_model.declare_neuron_fi(
+            batch=batch,
+            layer_num=layerArr,
+            dim1=dim1,
+            value=value,
+        )
+    elif dim == 2:
+        return pfi_model.declare_neuron_fi(
+            batch=batch,
+            layer_num=layerArr,
+            dim1=dim1,
+            dim2=dim2,
+            value=value,
+        )
+    elif dim == 3:
+        return pfi_model.declare_neuron_fi(
+            batch=batch,
+            layer_num=layerArr,
+            dim1=dim1,
+            dim2=dim2,
+            dim3=dim3,
+            value=value,
+        )
 
 if __name__ == '__main__':
 
@@ -30,6 +79,94 @@ if __name__ == '__main__':
     ranges = load_file(range_path + "ranges_trainset_layer")
     good_img_set = load_file(data_susbet_path + image_set)
 
+    # constants
+    total_layers = len(ranges)
+    total_inferences = getInjections() * total_layers * 2
 
+    # Use custom data loader
+    dataiter = load_custom_dataset(getDNN(), getDataset(), getBatchsize(), good_img_set,
+                                   total_inferences, workers=getWorkers())
+    model = getNetwork(getDNN(), getDataset())
+    criterion = nn.CrossEntropyLoss(reduction='none')
 
+    if getCUDA_en(): model = model.cuda()
+    if getPrecision() == 'FP16': model = model.half()
+    model.eval()
+    torch.no_grad()
 
+    # TODO
+    # quantization hooks go here
+
+    # init PyTorchFI
+    baseC = 3
+    if "IMAGENET" in getDataset():
+        baseH = 224
+        baseW = 224
+    elif "CIFAR" in getDataset():
+        baseH = 224
+        baseW = 224
+
+    pfi_model = fault_injection(model,
+                                getBatchsize(),
+                                input_shape=[baseC, baseH, baseW],
+                                layer_types=[nn.Conv2d, nn.Linear],
+                                use_cuda=True,
+                                )
+
+    if getDebug(): print(pfi_model.print_pytorchfi_layer_summary())
+
+    assert pfi_model.get_total_layers() == total_layers
+    shapes = pfi_model.get_output_size()
+
+    # ERROR INJECTION CAMPAIGN
+    start_time = time.time()
+    for currLayer in tqdm(range(pfi_model.get_total_layers()), desc='Layers'):
+        layerInjects = []
+
+        maxVal = ranges[currLayer]
+        currShape = shapes[currLayer][1:]
+
+        pbar = tqdm(total=inj_per_layer, desc='Inj per layer')
+        samples = 0
+        while samples <= inj_per_layer:
+            pbar.update(samples)
+
+            # prep images
+            images, labels, img_ids, index = dataiter.next()
+            if getCUDA_en():
+                labels = labels.cuda()
+                images = images.cuda()
+            if getPrecision() == 'FP16':
+                images = images.half()
+
+            # injection locations
+            inj_model = rand_neurons_batch(pfi_model, currLayer, currShape, maxVal, getBatchsize())
+
+            # perform inference
+            output_inj = inj_model(images)
+            output_argmax = torch.argmax(output_inj, dim=1)
+            output_inj_loss = criterion(output_inj, labels)
+
+            # save results
+            layerInjects.append((index.tolist(),
+                                 output_argmax.data.tolist(),
+                                 output_inj_loss.tolist(),
+                                 ))
+
+            samples += getBatchsize()
+            torch.cuda.empty_cache()
+        pbar.close()
+
+        fileName = "layer" + str(currLayer)
+        save_data(out_path, fileName, layerInjects)
+
+    end_time = time.time()
+
+    print("========================================================")
+    print(name)
+    print("Set: ", "Rank Set" if getTraining_en() else "Test Set")
+    # print("Quantization:", getQuantize_en())
+    # print("Error Model:", "Random Value" if not getSingleBitFlip_en() else "Single bit flip")
+    print("Total Error Injections:", total_inferences)
+    print("Total Runtime: {}".format(end_time - start_time) + " seconds")
+    print("========================================================")
