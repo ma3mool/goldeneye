@@ -1,9 +1,11 @@
 import time
 import torch.nn as nn
 from util import *
+from tqdm import tqdm
+
+sys.path.append("./pytorchfi")
 from pytorchfi.core import fault_injection
 from pytorchfi.error_models import *
-from tqdm import tqdm
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
     dim = len(shape)
@@ -21,6 +23,7 @@ def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
             dim2.append(dim2val)
         else:
             dim2.append(None)
+
         if dim >= 3:
             dim3val = random.randint(0, shape[2]-1)
             dim3.append(dim3val)
@@ -66,7 +69,7 @@ if __name__ == '__main__':
 
     # constants
     total_layers = len(ranges)
-    total_inferences = getInjections() * total_layers * 2
+    total_inferences = getInjections() * total_layers
 
     # Use custom data loader
     dataiter = load_custom_dataset(getDNN(), getDataset(), getBatchsize(), good_img_set,
@@ -113,7 +116,7 @@ if __name__ == '__main__':
 
         pbar = tqdm(total=inj_per_layer, desc='Inj per layer')
         samples = 0
-        while samples <= inj_per_layer:
+        while samples < inj_per_layer:
             pbar.update(samples)
 
             # prep images
@@ -140,6 +143,7 @@ if __name__ == '__main__':
 
             samples += getBatchsize()
             torch.cuda.empty_cache()
+            print("")
         pbar.close()
 
         fileName = "layer" + str(currLayer)
