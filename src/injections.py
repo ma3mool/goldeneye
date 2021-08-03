@@ -7,49 +7,34 @@ from tqdm import tqdm
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
     dim = len(shape)
-    batch, layerArr, dim1, value = ([] for i in range(4))
+    batch, layerArr, dim1, dim2, dim3, value = ([] for i in range(6))
 
-    if dim >= 2: dim2 = []
-    if dim >= 3: dim3 = []
-
-    for i in range(len(batch)):
+    for i in range(batchsize):
         batch.append(i)
         layerArr.append(layer)
         value.append(random_value(-1.0 * maxval, maxval))
 
-        dim1val = random.randint(0, shape[0])
+        dim1val = random.randint(0, shape[0]-1)
         dim1.append(dim1val)
         if dim >= 2:
-            dim2val = random.randint(0, shape[1])
+            dim2val = random.randint(0, shape[1]-1)
             dim2.append(dim2val)
+        else:
+            dim2.append(None)
         if dim >= 3:
-            dim3val = random.randint(0, shape[2])
+            dim3val = random.randint(0, shape[2]-1)
             dim3.append(dim3val)
+        else:
+            dim3.append(None)
 
-    if dim == 1:
-        return pfi_model.declare_neuron_fi(
-            batch=batch,
-            layer_num=layerArr,
-            dim1=dim1,
-            value=value,
-        )
-    elif dim == 2:
-        return pfi_model.declare_neuron_fi(
-            batch=batch,
-            layer_num=layerArr,
-            dim1=dim1,
-            dim2=dim2,
-            value=value,
-        )
-    elif dim == 3:
-        return pfi_model.declare_neuron_fi(
-            batch=batch,
-            layer_num=layerArr,
-            dim1=dim1,
-            dim2=dim2,
-            dim3=dim3,
-            value=value,
-        )
+    return pfi_model.declare_neuron_fi(
+        batch=batch,
+        layer_num=layerArr,
+        dim1=dim1,
+        dim2=dim2,
+        dim3=dim3,
+        value=value,
+    )
 
 if __name__ == '__main__':
 
