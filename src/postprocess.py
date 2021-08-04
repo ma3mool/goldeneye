@@ -1,6 +1,7 @@
 from util import *
 import concurrent.futures
 import math
+import pandas as pd
 from tqdm import tqdm
 
 MAX_INJ = 0
@@ -97,7 +98,8 @@ def _layer_file_processing(data_in):
 
 
     if PRINT_INJ_INFO:
-        f_det = open(inj_path + "layer" + str(curr_layer) + "_detailed.csv", "w+")
+        fileName = inj_path + "layer" + str(curr_layer) + "_detailed"
+        f_det = open(fileName + ".csv", "w+")
 
         outputString = "Injection, ImgID, GoldConf, GoldTop2Diff, GoldLabel, InjLabel, GoldLoss, InjLoss, DeltaLoss\n"
         f_det.write(outputString)
@@ -119,8 +121,9 @@ def _layer_file_processing(data_in):
             count += 1
         f_det.close()
 
-
-
+        # create a data frame
+        df = pd.read_csv(fileName + ".csv")
+        df.to_pickle(fileName + ".pkl")
 
 
     return curr_layer, _layer_mismatches, ave_delta_loss, std_delta_loss
