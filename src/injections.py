@@ -4,8 +4,6 @@ from util import *
 from tqdm import tqdm
 
 sys.path.append("./pytorchfi")
-from pytorchfi.core import fault_injection
-from pytorchfi.error_models import *
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
     dim = len(shape)
@@ -44,6 +42,10 @@ if __name__ == '__main__':
     # Read in cmd line args
     check_args(sys.argv[1:])
     if getDebug(): printArgs()
+
+    sys.path.append(getOutputDir() + "../src/pytorchfi") #when calling from ./scripts/
+    from pytorchfi.core import fault_injection
+    from pytorchfi.error_models import *
 
     inj_per_layer = getInjections()
     assert inj_per_layer != -1, "The number of injections is not valid (-1)"
