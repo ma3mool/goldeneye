@@ -302,12 +302,15 @@ class num_bfloat16(_ieee754):
 
 
 class num_fixed_pt(_number_sys):
+    # 1 bit for sign + len(integer part) + len(frac part)
     def __init__(self, int_len=3, frac_len=3):
         self.int_len = int_len
         self.frac_len = frac_len
 
     def real_to_format(self, num):
-        # two's complement is used for representing the sign
+        # sign-magnitude is used for representing the sign
+        sign = "1" if num < 0 else "0"
+        num = abs(num)
         int_str = _number_sys.int_to_bin(int(num))
         if len(int_str) > self.int_len:
             int_str = "1" * self.int_len
@@ -318,13 +321,15 @@ class num_fixed_pt(_number_sys):
         int_str = ("0" * (self.int_len - len(int_str))) + int_str
         frac_str = frac_str + ("0" * (self.frac_len - len(frac_str)))
 
-        return list(int_str) + list(frac_str)
+        return list(sign) + list(int_str) + list(frac_str)
 
     def format_to_real(self, bit_arr):
         int_str, frac_str = map(
-            lambda arr: "".join(arr), (bit_arr[: self.int_len], bit_arr[self.int_len :])
+            lambda arr: "".join(arr),
+            (bit_arr[1 : self.int_len + 1], bit_arr[self.int_len + 1 :]),
         )
-        return int(int_str, 2) + _number_sys.bin_to_frac(frac_str)
+        sign = 1 if bit_arr[0] == "0" else -1
+        return sign * (int(int_str, 2) + _number_sys.bin_to_frac(frac_str))
 
 
 """
@@ -570,7 +575,13 @@ class single_bit_flip_func(core.fault_injection):
 
 class single_bit_flip_func_with_num_sys(single_bit_flip_func):
     def __init__(
-        self, model, batch_size, input_shape=None, num_sys=num_fp32(), quant=False, **kwargs
+        self,
+        model,
+        batch_size,
+        input_shape=None,
+        num_sys=num_fp32(),
+        quant=False,
+        **kwargs
     ):
         super(single_bit_flip_func_with_num_sys, self).__init__(
             model, batch_size, input_shape=input_shape
