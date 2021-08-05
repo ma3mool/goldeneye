@@ -54,7 +54,7 @@ if __name__ == '__main__':
     name = getDNN() + "_" + getDataset() + "_" + getPrecision()
     range_path = getOutputDir() + "/networkRanges/" + name + "/"
     profile_path= getOutputDir() + "/networkProfiles/" + name + "/"
-    data_susbet_path = getOutputDir() + "/data_subset/" + name + "/"
+    data_subset_path = getOutputDir() + "/data_subset/" + name + "/"
     out_path = getOutputDir() + "/injections/" + name + "/"
     image_set = ""
 
@@ -67,7 +67,7 @@ if __name__ == '__main__':
 
     # load important info: ranges, mapping, good images
     ranges = load_file(range_path + "ranges_trainset_layer")
-    good_img_set = load_file(data_susbet_path + image_set)
+    good_img_set = load_file(data_subset_path + image_set)
 
     # constants
     total_layers = len(ranges)

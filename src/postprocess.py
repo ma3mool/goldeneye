@@ -152,7 +152,7 @@ if __name__ == "__main__":
     ranges = load_file(range_path + "ranges_trainset_layer")
     golden_data = load_file(profile_path + "golden_data")
 
-    LAYERS = len(range_path) + 1
+    LAYERS = len(ranges)
     INJ = getInjections()
     setMax(INJ)
 
