@@ -86,6 +86,11 @@ class _number_sys:
 
         return self.format_to_real(bit_arr_corrupted)
 
+    def quantize(self, num):
+        bit_arr = self.real_to_format(num)
+
+        return self.format_to_real(bit_arr)
+
     # HELPER FUNCTIONS
 
     def quantize_float(float_arr, n_bits=8, n_exp=3, use_denorm=True):
