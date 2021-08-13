@@ -11,6 +11,8 @@ from pytorchfi.error_models_num_sys import (
     num_fixed_pt,
 )
 
+from goldeneye import goldeneye
+
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
     dim = len(shape)
@@ -123,10 +125,10 @@ if __name__ == "__main__":
     # TODO
     # quantization hooks go here
 
-    # register forward hook to the model
-    for param in model.modules():
-        if isinstance(param, nn.Conv2d) or isinstance(param, nn.Linear):
-            param.register_forward_hook(quantize)
+    # # register forward hook to the model
+    # for param in model.modules():
+    #     if isinstance(param, nn.Conv2d) or isinstance(param, nn.Linear):
+    #         param.register_forward_hook(quantize)
 
     # init PyTorchFI
     baseC = 3
@@ -173,9 +175,21 @@ if __name__ == "__main__":
                 images = images.half()
 
             # injection locations
-            inj_model = rand_neurons_batch(
-                pfi_model, currLayer, currShape, maxVal, getBatchsize()
+            inj_model = goldeneye(
+                model,
+                getBatchsize(),
+                input_shape=[baseC, baseH, baseW],
+                layer_types=[nn.Conv2d, nn.Linear],
+                use_cuda=True,
+                num_sys=num_bfloat16(),
+                quant=True,
+                layer_max=[],
+                inj_order=1,
             )
+
+            # rand_neurons_batch(
+            #     pfi_model, currLayer, currShape, maxVal, getBatchsize()
+            # )
 
             # perform inference
             output_inj = inj_model(images)
