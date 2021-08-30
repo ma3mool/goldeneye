@@ -1,66 +1,49 @@
 import time
 import torch.nn as nn
 from util import *
-from pytorchfi.core import fault_injection
-from pytorchfi.error_models import *
 from tqdm import tqdm
-from pytorchfi.error_models_num_sys import (
+from goldeneye import goldeneye
+
+sys.path.append("./pytorchfi")
+from error_models_num_sys import (
     num_fp32,
     num_fp16,
     num_bfloat16,
     num_fixed_pt,
 )
 
-from goldeneye import goldeneye
-
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
     dim = len(shape)
-    batch, layerArr, dim1, value = ([] for i in range(4))
+    batch, layerArr, dim1, dim2, dim3, value = ([] for i in range(6))
 
-    if dim >= 2:
-        dim2 = []
-    if dim >= 3:
-        dim3 = []
-
-    for i in range(len(batch)):
+    for i in range(batchsize):
         batch.append(i)
         layerArr.append(layer)
         value.append(random_value(-1.0 * maxval, maxval))
 
-        dim1val = random.randint(0, shape[0])
+        dim1val = random.randint(0, shape[0]-1)
         dim1.append(dim1val)
         if dim >= 2:
-            dim2val = random.randint(0, shape[1])
+            dim2val = random.randint(0, shape[1]-1)
             dim2.append(dim2val)
-        if dim >= 3:
-            dim3val = random.randint(0, shape[2])
-            dim3.append(dim3val)
+        else:
+            dim2.append(None)
 
-    if dim == 1:
-        return pfi_model.declare_neuron_fi(
-            batch=batch,
-            layer_num=layerArr,
-            dim1=dim1,
-            value=value,
-        )
-    elif dim == 2:
-        return pfi_model.declare_neuron_fi(
-            batch=batch,
-            layer_num=layerArr,
-            dim1=dim1,
-            dim2=dim2,
-            value=value,
-        )
-    elif dim == 3:
-        return pfi_model.declare_neuron_fi(
-            batch=batch,
-            layer_num=layerArr,
-            dim1=dim1,
-            dim2=dim2,
-            dim3=dim3,
-            value=value,
-        )
+        if dim >= 3:
+            dim3val = random.randint(0, shape[2]-1)
+            dim3.append(dim3val)
+        else:
+            dim3.append(None)
+
+    return pfi_model.declare_neuron_fi(
+        batch=batch,
+        layer_num=layerArr,
+        dim1=dim1,
+        dim2=dim2,
+        dim3=dim3,
+        value=value,
+    )
 
 
 def quantize(module, input, output):
@@ -77,12 +60,17 @@ if __name__ == "__main__":
     if getDebug():
         printArgs()
 
+    sys.path.append(getOutputDir() + "../src/pytorchfi") #when calling from ./scripts/
+    from pytorchfi.core import fault_injection
+    from pytorchfi.error_models import *
+
     inj_per_layer = getInjections()
     assert inj_per_layer != -1, "The number of injections is not valid (-1)"
 
     # common variables
     name = getDNN() + "_" + getDataset() + "_" + getPrecision()
     range_path = getOutputDir() + "/networkRanges/" + name + "/"
+<<<<<<< HEAD
     profile_path = getOutputDir() + "/networkProfiles/" + name + "/"
     data_susbet_path = getOutputDir() + "/data_subset/" + name + "/"
     out_path = getOutputDir() + "/injections/" + name + "/"
@@ -97,11 +85,11 @@ if __name__ == "__main__":
 
     # load important info: ranges, mapping, good images
     ranges = load_file(range_path + "ranges_trainset_layer")
-    good_img_set = load_file(data_susbet_path + image_set)
+    good_img_set = load_file(data_subset_path + image_set)
 
     # constants
     total_layers = len(ranges)
-    total_inferences = getInjections() * total_layers * 2
+    total_inferences = getInjections() * total_layers
 
     # Use custom data loader
     dataiter = load_custom_dataset(
@@ -163,7 +151,7 @@ if __name__ == "__main__":
 
         pbar = tqdm(total=inj_per_layer, desc="Inj per layer")
         samples = 0
-        while samples <= inj_per_layer:
+        while samples < inj_per_layer:
             pbar.update(samples)
 
             # prep images
@@ -207,6 +195,7 @@ if __name__ == "__main__":
 
             samples += getBatchsize()
             torch.cuda.empty_cache()
+            print("")
         pbar.close()
 
         fileName = "layer" + str(currLayer)

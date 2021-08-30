@@ -230,6 +230,14 @@ class _ieee754(_number_sys):
 
         num = abs(num)
 
+        # # Quantize using Thierry's code
+        # num = _number_sys.quantize_float(
+        #     np.array([num]),
+        #     n_bits=self.exp_len + 1 + self.mant_len,
+        #     n_exp=self.exp_len,
+        #     use_denorm=self.denorm,
+        # ).item()
+
         int_str = _number_sys.int_to_bin(int(num))
         frac_str = _number_sys.frac_to_bin(num - int(num))
 
