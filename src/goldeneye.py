@@ -1,10 +1,11 @@
-import random
+import random, sys
 import logging
 import numpy as np
 import torch
 import csv
-from ..pytorchfi.pytorchfi import core
 
+sys.path.append("./pytorchfi")
+from pytorchfi import core
 
 class goldeneye(core.fault_injection):
     def __init__(
