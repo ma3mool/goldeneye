@@ -2,6 +2,17 @@ from util import *
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
+from goldeneye import goldeneye
+
+sys.path.append("./pytorchfi")
+from pytorchfi import core
+# from pytorchfi.error_models import *
+from error_models_num_sys import (
+    num_fp32,
+    num_fp16,
+    num_bfloat16,
+    num_fixed_pt,
+)
 
 # goes through dataset and finds correctly classified images, and corresponding data
 @torch.no_grad()
@@ -85,11 +96,25 @@ if __name__ == '__main__':
     out_path = getOutputDir() + "/networkProfiles/" + name + "/"
     subset_path = getOutputDir() + "/data_subset/" + name + "/"
 
+    # get ranges
+    ranges = load_file(range_path + "ranges_trainset_layer")
+
     # load data and model
     dataiter = load_dataset(getDataset(), getBatchsize(), workers = getWorkers())
     model = getNetwork(getDNN(), getDataset())
     model.eval()
     torch.no_grad()
+
+    inj_model = goldeneye(
+        model,
+        getBatchsize(),
+        layer_types=[nn.Conv2d, nn.Linear],
+        use_cuda=True,
+        num_sys=num_bfloat16,
+        quant=False,
+        layer_max=ranges,
+        inj_order=False,
+    )
 
     # Golden data gathering
     golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(model, dataiter, \

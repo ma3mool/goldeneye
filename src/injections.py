@@ -2,8 +2,16 @@ import time
 import torch.nn as nn
 from util import *
 from tqdm import tqdm
+from goldeneye import goldeneye
 
 sys.path.append("./pytorchfi")
+from error_models_num_sys import (
+    num_fp32,
+    num_fp16,
+    num_bfloat16,
+    num_fixed_pt,
+)
+
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
     dim = len(shape)
@@ -37,11 +45,20 @@ def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
         value=value,
     )
 
-if __name__ == '__main__':
+
+def quantize(module, input, output):
+    # NOTE: pytorch recommends not using apply_ in
+    # situations where high performance is needed.
+    # The function apply_ seems to only support cpu tensors (?)
+    return output.apply_(lambda val: num_fp32().quantize(val))
+
+
+if __name__ == "__main__":
 
     # Read in cmd line args
     check_args(sys.argv[1:])
-    if getDebug(): printArgs()
+    if getDebug():
+        printArgs()
 
     sys.path.append(getOutputDir() + "../src/pytorchfi") #when calling from ./scripts/
     from pytorchfi.core import fault_injection
@@ -53,8 +70,9 @@ if __name__ == '__main__':
     # common variables
     name = getDNN() + "_" + getDataset() + "_" + getPrecision()
     range_path = getOutputDir() + "/networkRanges/" + name + "/"
-    profile_path= getOutputDir() + "/networkProfiles/" + name + "/"
-    data_subset_path = getOutputDir() + "/data_subset/" + name + "/"
+<<<<<<< HEAD
+    profile_path = getOutputDir() + "/networkProfiles/" + name + "/"
+    data_susbet_path = getOutputDir() + "/data_subset/" + name + "/"
     out_path = getOutputDir() + "/injections/" + name + "/"
     image_set = ""
 
@@ -74,18 +92,31 @@ if __name__ == '__main__':
     total_inferences = getInjections() * total_layers
 
     # Use custom data loader
-    dataiter = load_custom_dataset(getDNN(), getDataset(), getBatchsize(), good_img_set,
-                                   total_inferences, workers=getWorkers())
+    dataiter = load_custom_dataset(
+        getDNN(),
+        getDataset(),
+        getBatchsize(),
+        good_img_set,
+        total_inferences,
+        workers=getWorkers(),
+    )
     model = getNetwork(getDNN(), getDataset())
-    criterion = nn.CrossEntropyLoss(reduction='none')
+    criterion = nn.CrossEntropyLoss(reduction="none")
 
-    if getCUDA_en(): model = model.cuda()
-    if getPrecision() == 'FP16': model = model.half()
+    if getCUDA_en():
+        model = model.cuda()
+    if getPrecision() == "FP16":
+        model = model.half()
     model.eval()
     torch.no_grad()
 
     # TODO
     # quantization hooks go here
+
+    # # register forward hook to the model
+    # for param in model.modules():
+    #     if isinstance(param, nn.Conv2d) or isinstance(param, nn.Linear):
+    #         param.register_forward_hook(quantize)
 
     # init PyTorchFI
     baseC = 3
@@ -96,27 +127,29 @@ if __name__ == '__main__':
         baseH = 224
         baseW = 224
 
-    pfi_model = fault_injection(model,
-                                getBatchsize(),
-                                input_shape=[baseC, baseH, baseW],
-                                layer_types=[nn.Conv2d, nn.Linear],
-                                use_cuda=True,
-                                )
+    pfi_model = fault_injection(
+        model,
+        getBatchsize(),
+        input_shape=[baseC, baseH, baseW],
+        layer_types=[nn.Conv2d, nn.Linear],
+        use_cuda=True,
+    )
 
-    if getDebug(): print(pfi_model.print_pytorchfi_layer_summary())
+    if getDebug():
+        print(pfi_model.print_pytorchfi_layer_summary())
 
     assert pfi_model.get_total_layers() == total_layers
     shapes = pfi_model.get_output_size()
 
     # ERROR INJECTION CAMPAIGN
     start_time = time.time()
-    for currLayer in tqdm(range(pfi_model.get_total_layers()), desc='Layers'):
+    for currLayer in tqdm(range(pfi_model.get_total_layers()), desc="Layers"):
         layerInjects = []
 
         maxVal = ranges[currLayer]
         currShape = shapes[currLayer][1:]
 
-        pbar = tqdm(total=inj_per_layer, desc='Inj per layer')
+        pbar = tqdm(total=inj_per_layer, desc="Inj per layer")
         samples = 0
         while samples < inj_per_layer:
             pbar.update(samples)
@@ -126,11 +159,25 @@ if __name__ == '__main__':
             if getCUDA_en():
                 labels = labels.cuda()
                 images = images.cuda()
-            if getPrecision() == 'FP16':
+            if getPrecision() == "FP16":
                 images = images.half()
 
             # injection locations
-            inj_model = rand_neurons_batch(pfi_model, currLayer, currShape, maxVal, getBatchsize())
+            inj_model = goldeneye(
+                model,
+                getBatchsize(),
+                input_shape=[baseC, baseH, baseW],
+                layer_types=[nn.Conv2d, nn.Linear],
+                use_cuda=True,
+                num_sys=num_bfloat16(),
+                quant=True,
+                layer_max=[],
+                inj_order=1,
+            )
+
+            # rand_neurons_batch(
+            #     pfi_model, currLayer, currShape, maxVal, getBatchsize()
+            # )
 
             # perform inference
             output_inj = inj_model(images)
@@ -138,10 +185,13 @@ if __name__ == '__main__':
             output_inj_loss = criterion(output_inj, labels)
 
             # save results
-            layerInjects.append((index.tolist(),
-                                 output_argmax.data.tolist(),
-                                 output_inj_loss.tolist(),
-                                 ))
+            layerInjects.append(
+                (
+                    index.tolist(),
+                    output_argmax.data.tolist(),
+                    output_inj_loss.tolist(),
+                )
+            )
 
             samples += getBatchsize()
             torch.cuda.empty_cache()

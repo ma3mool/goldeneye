@@ -86,10 +86,16 @@ class _number_sys:
 
         return self.format_to_real(bit_arr_corrupted)
 
-    def quantize(self, num):
+    def convert_data_format(self, num, bit_ind, flip=False):
         bit_arr = self.real_to_format(num)
 
+        if flip:
+            bit_arr = self.bit_flip(bit_arr, bit_ind)
+
         return self.format_to_real(bit_arr)
+
+    def real_to_format_to_real_tensor(input_tensor):
+        return output.apply_(lambda val: num_fp32().convert_data_format(val))
 
     # HELPER FUNCTIONS
 
@@ -224,13 +230,13 @@ class _ieee754(_number_sys):
 
         num = abs(num)
 
-        # Quantize using Thierry's code
-        num = _number_sys.quantize_float(
-            np.array([num]),
-            n_bits=self.exp_len + 1 + self.mant_len,
-            n_exp=self.exp_len,
-            use_denorm=self.denorm,
-        ).item()
+        # # Quantize using Thierry's code
+        # num = _number_sys.quantize_float(
+        #     np.array([num]),
+        #     n_bits=self.exp_len + 1 + self.mant_len,
+        #     n_exp=self.exp_len,
+        #     use_denorm=self.denorm,
+        # ).item()
 
         int_str = _number_sys.int_to_bin(int(num))
         frac_str = _number_sys.frac_to_bin(num - int(num))
