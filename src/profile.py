@@ -5,14 +5,24 @@ from tqdm import tqdm
 from goldeneye import goldeneye
 
 sys.path.append("./pytorchfi")
-from pytorchfi import core
-# from pytorchfi.error_models import *
 from error_models_num_sys import (
     num_fp32,
     num_fp16,
     num_bfloat16,
     num_fixed_pt,
 )
+
+def getNumSysName(name):
+    if name == "fp32":
+        return num_fp32
+    elif name == "fp16":
+        return num_fp16
+    elif name == "bfloat16":
+        return num_bfloat16
+    elif name == "fixedpt":
+        return num_fixed_pt
+    else:
+        sys.exit("Number format not supported")
 
 # goes through dataset and finds correctly classified images, and corresponding data
 @torch.no_grad()
@@ -91,8 +101,11 @@ if __name__ == '__main__':
     if getDebug(): printArgs()
 
     # common variables
-    name = getDNN() + "_" + getDataset() + "_" + getPrecision()
-    range_path = getOutputDir() + "/networkRanges/" + name + "/"
+    range_name = getDNN() + "_" + getDataset()
+    range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
+    if getQuantize_en(): name += "_" + "quant"
     out_path = getOutputDir() + "/networkProfiles/" + name + "/"
     subset_path = getOutputDir() + "/data_subset/" + name + "/"
 
@@ -109,15 +122,15 @@ if __name__ == '__main__':
         model,
         getBatchsize(),
         layer_types=[nn.Conv2d, nn.Linear],
-        use_cuda=True,
-        num_sys=num_bfloat16,
-        quant=False,
+        use_cuda=getCUDA_en(),
+        num_sys=getNumSysName(getFormat()),
+        quant=getQuantize_en(),
         layer_max=ranges,
         inj_order=False,
     )
 
     # Golden data gathering
-    golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(model, dataiter, \
+    golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(inj_model, dataiter, \
             getBatchsize(), precision=getPrecision(), verbose=getVerbose(), debug=getDebug())
 
     # Golden data gathering
@@ -126,11 +139,21 @@ if __name__ == '__main__':
     df = save_data_df(out_path, output_name, golden_data)
 
     # Print Summary Statistics
+    summaryDetails = ""
+    summaryDetails += "===========================================\n"
+    summaryDetails += "%s\n" % (name)
+    summaryDetails += "Accuracy: \t%0.2f%%\n" % (good_imgs / total_imgs * 100.0)
+    summaryDetails += "Ave Loss: \t%0.2f\n" % (df["inf_loss"].mean())
+    summaryDetails += "Ave Conf: \t%0.2f%%\n" % (df["inf_conf"].mean())
+    summaryDetails += "Ave Top2Diff: \t%0.2f%%\n" % (df["inf_top2diff"].mean())
+    summaryDetails += "===========================================\n"
+
     if getVerbose():
-        print("===========================================")
-        print(name)
-        print("Accuracy: \t%0.2f%%" %(good_imgs / total_imgs * 100.0))
-        print("Ave Loss: \t%0.2f" %(df["inf_loss"].mean()))
-        print("Ave Conf: \t%0.2f%%" %(df["inf_conf"].mean()))
-        print("Ave Top2Diff: \t%0.2f%%" %(df["inf_top2diff"].mean()))
-        print("===========================================")
+        print(summaryDetails)
+        # print("===========================================")
+        # print(name)
+        # print("Accuracy: \t%0.2f%%" %(good_imgs / total_imgs * 100.0))
+        # print("Ave Loss: \t%0.2f" %(df["inf_loss"].mean()))
+        # print("Ave Conf: \t%0.2f%%" %(df["inf_conf"].mean()))
+        # print("Ave Top2Diff: \t%0.2f%%" %(df["inf_top2diff"].mean()))
+        # print("===========================================")

@@ -21,13 +21,14 @@ Helper functions to parse input
 batchsize_in = -1
 dnn_in = ""
 dataset_in = ""
+format_in = ""
 precision_in = ""
 output_in = ""
 cuda_in = True
 injections_in = -1
 workers_in = -1
 training_in = False
-# quantize_in = False
+quantize_in = False
 # singlebitflip_in = False
 verbose_in = False
 debug_in = False
@@ -52,6 +53,11 @@ def check_args(args=None):
                         help='CIFAR10, CIFAR100, or IMAGENET',
                         required='True',
                         default='IMAGENET')
+
+    parser.add_argument('-f', '--format',
+                        help='Data format: fp32, fp16, bfloat16, fixedpt',
+                        required='True',
+                        default='fp32')
 
     parser.add_argument('-P', '--precision',
                         help='FP32 or FP16',
@@ -115,21 +121,22 @@ def check_args(args=None):
 
     results = parser.parse_args(args)
 
-    global batchsize_in, dnn_in, dataset_in, precision_in, output_in, cuda_in, \
-        injections_in, training_in, workers_in, \
+    global batchsize_in, dnn_in, dataset_in, format_in, precision_in, output_in, cuda_in, \
+        injections_in, training_in, workers_in, quantize_in, \
         verbose_in, debug_in
-    # global quantize_in, singlebitflip_in
+    # global singlebitflip_in
 
     batchsize_in = results.batchsize
     dnn_in = results.dnn
     dataset_in = results.dataset
+    format_in = results.format
     precision_in = results.precision
     output_in = results.output
     cuda_in = results.cuda
     injections_in = results.injections
     training_in = results.training
     workers_in = results.workers
-    # quantize_in = results.quantize
+    quantize_in = results.quantize
     # singlebitflip_in = results.errormodel
     verbose_in = results.verbose
     debug_in = results.debug
@@ -142,13 +149,14 @@ def check_args(args=None):
 def getBatchsize(): return batchsize_in
 def getDNN(): return dnn_in
 def getDataset(): return dataset_in
+def getFormat(): return format_in
 def getPrecision(): return precision_in
 def getOutputDir(): return output_in
 def getCUDA_en(): return cuda_in
 def getInjections(): return injections_in
 def getTraining_en(): return training_in
 def getWorkers(): return workers_in
-# def getQuantize_en(): return quantize_in
+def getQuantize_en(): return quantize_in
 # def getQuantizeBits(): return QUANTIZE_BITS
 # def getSingleBitFlip_en(): return singlebitflip_in
 def getVerbose(): return verbose_in
@@ -156,11 +164,11 @@ def getDebug(): return debug_in
 
 
 def printArgs():
-    print('BATCH SIZE: \t%d\nDNN: \t\t%s\nDATASET: \t%s\n' \
+    print('BATCH SIZE: \t%d\nDNN: \t\t%s\nDATASET: \t%sFORMAT: \t%s\n' \
           'PRECISION: \t%s\nOUTPUT: \t%s\nUSE_CUDA: \t%s\n' \
           'INJECTIONS: \t%s\nTRAINING DATA: \t%s\nWORKERS: \t%d\n' \
           'VERBOSE: \t%s\nDEBUG: \t\t%s\n' \
-          % (batchsize_in, dnn_in, dataset_in, precision_in, output_in, cuda_in, \
+          % (batchsize_in, dnn_in, dataset_in, format_in, precision_in, output_in, cuda_in, \
              injections_in, training_in, workers_in, verbose_in, debug_in))
 
 
@@ -171,6 +179,17 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+# def getNumSysName(name):
+#     if name == "fp32":
+#         return num_fp32
+#     elif name == "fp16":
+#         return fp16
+#     elif name == "bfloat16":
+#         return bfloat16
+#     elif name == "fixedpt":
+#         return num_fixed_pt
+
 
 def getNetwork(networkName, DATASET):
     ####### IMAGENET #######

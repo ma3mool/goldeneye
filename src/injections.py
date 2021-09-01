@@ -70,9 +70,8 @@ if __name__ == "__main__":
     # common variables
     name = getDNN() + "_" + getDataset() + "_" + getPrecision()
     range_path = getOutputDir() + "/networkRanges/" + name + "/"
-<<<<<<< HEAD
     profile_path = getOutputDir() + "/networkProfiles/" + name + "/"
-    data_susbet_path = getOutputDir() + "/data_subset/" + name + "/"
+    data_subset_path = getOutputDir() + "/data_subset/" + name + "/"
     out_path = getOutputDir() + "/injections/" + name + "/"
     image_set = ""
 

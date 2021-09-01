@@ -72,7 +72,7 @@ if __name__ == '__main__':
     if getDebug(): printArgs()
 
     # common variables
-    name = getDNN() + "_" + getDataset() + "_" + getPrecision()
+    name = getDNN() + "_" + getDataset()
     out_path = getOutputDir() + "/networkRanges/" + name + "/"
 
     # load data and model
