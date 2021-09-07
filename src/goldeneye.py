@@ -35,18 +35,19 @@ class goldeneye(core.fault_injection):
         # Golden eye specific
         self.num_sys = num_sys
         self.quant = quant
-        self.layer_max = layer_max
+        self.set_layer_max(layer_max)
+        # self.layer_max = layer_max
         self.inj_order = inj_order
         # the order of injecting within the goldeneye transformation
         # 0 -> no injection, 1 -> between quantization and de-quantization, 2 -> after converting to the number system, 3 -> after dequantization, 4 -> after converting num sys
 
-    def set_conv_max(self, data):
+    def set_layer_max(self, data):
         self.LayerRanges = data
 
-    def reset_conv_max(self, data):
+    def reset_layer_max(self, data):
         self.LayerRanges = []
 
-    def get_conv_max(self, layer):
+    def get_layer_max(self, layer):
         return self.LayerRanges[layer]
 
     def _twos_comp_shifted(self, val, nbits):
@@ -217,8 +218,10 @@ class goldeneye(core.fault_injection):
 
     def _flip_bit_goldeneye(self, orig_value, max_value, bit_pos, to_inj=False):
 
-        save_type = orig_value.dtype
-        in_num = orig_value.item()
+        # print(type(orig_value))
+        # save_type = orig_value.dtype
+        # in_num = orig_value.item()
+        in_num = orig_value
 
         # If injection pos = 0, no injection
 
@@ -242,21 +245,21 @@ class goldeneye(core.fault_injection):
 
         out_num = self.hook5_num_sys_inj3(out_num, bit_pos, to_inj)
 
-        return torch.tensor(out_num, dtype=save_type)
+        # return torch.tensor(out_num, dtype=save_type)
+        return torch.tensor(out_num)
 
     def apply_goldeneye_transformation(self, module, input, output):
-        corrupt_conv_set = self.get_corrupt_layer()
-        range_max = self.get_conv_max(self.get_curr_layer())
+        corrupt_layer_set = self.get_corrupt_layer()
+        range_max = self.get_layer_max(self.get_curr_layer())
         logging.info("curr_conv", self.get_curr_layer())
         logging.info("range_max", range_max)
 
         inj_list = list(
             filter(
-                lambda x: corrupt_conv_set[x] == self.get_curr_layer(),
-                range(len(corrupt_conv_set)),
+                lambda x: corrupt_layer_set[x] == self.get_curr_layer(),
+                range(len(corrupt_layer_set)),
             )
         )
-
         for i in inj_list:
             prev_value = self.get_tensor_value(
                 output,
@@ -279,12 +282,19 @@ class goldeneye(core.fault_injection):
                 self.CORRUPT_DIM3[i],
             )
 
-        # TO OPTIMIZE (??)
-        output.apply_(
+        baseDevice = output.get_device()
+        # TO OPTIMIZE (??). Must move to CPU, then back to_device
+        print(output.dtype) #torch.float32
+        output.cpu().apply_(
             lambda val: self._flip_bit_goldeneye(
-                prev_value, range_max, rand_bit, to_inj=False
+                # prev_value, range_max, rand_bit, to_inj=False
+                val, range_max, bit_pos=-1, to_inj=False
             )
-        )
+        ).to_device(baseDevice)
+
+        # TODO: Double check that this does not change injected values
+
+        print("Got here. Layer Num: %d" %(self.get_curr_layer()))
         self.updateLayer()
         if self.get_curr_layer() >= self.get_total_layers():
             self.reset_curr_layer()

@@ -35,6 +35,7 @@ def gather_golden(model, data_iter, cuda_en=True, precision='FP16', verbose=Fals
     criterion = nn.CrossEntropyLoss(reduction='none')
     counter = 0
     for input_data in tqdm(data_iter):
+        inf_model = model.declare_neuron_fi(function=model.apply_goldeneye_transformation)
         # if debug:
         #     if processed_elements >= max_elements:
         #         break
@@ -46,7 +47,7 @@ def gather_golden(model, data_iter, cuda_en=True, precision='FP16', verbose=Fals
             images = images.cuda()
             labels = labels.cuda()
 
-        output = model(images) # run an inference
+        output = inf_model(images) # run an inference
         output_loss = criterion(output, labels)
 
         # get argmax and conf
@@ -128,6 +129,7 @@ if __name__ == '__main__':
         layer_max=ranges,
         inj_order=False,
     )
+
 
     # Golden data gathering
     golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(inj_model, dataiter, \
