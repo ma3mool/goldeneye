@@ -7,11 +7,11 @@ class _number_sys:
         bit_arr[bit_ind] = "0" if int(bit_arr[bit_ind]) else "1"
         return bit_arr
 
-    # def real_to_format(self, num):
-    #     raise NotImplementedError
-    #
-    # def format_to_real(self, bit_arr):
-    #     raise NotImplementedError
+    def real_to_format(self, num):
+        raise NotImplementedError
+
+    def format_to_real(self, bit_arr):
+        raise NotImplementedError
 
     def single_bit_flip_in_format(self, num, bit_ind):
         bit_arr = self.real_to_format(num)
@@ -23,14 +23,12 @@ class _number_sys:
         return self.format_to_real(bit_arr_corrupted)
 
     def convert_data_format(self, num, bit_ind, flip=False):
-
-        bit_arr = self.num_sys.real_to_format(self, num)
+        bit_arr = self.real_to_format(num)
 
         if flip:
-            bit_arr = self.num_sys.bit_flip(self, bit_arr, bit_ind)
+            bit_arr = self.bit_flip(bit_arr, bit_ind)
 
-        print(type(self))
-        return self.num_sys.format_to_real(self, bit_arr)
+        return self.format_to_real(bit_arr)
 
     def real_to_format_to_real_tensor(input_tensor):
         return input_tensor.apply_(lambda val: num_fp32().convert_data_format(val))
