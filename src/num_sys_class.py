@@ -268,7 +268,11 @@ class num_bfloat16(_ieee754):
 
 class num_fixed_pt(_number_sys):
     # 1 bit for sign + len(integer part) + len(frac part)
-    def __init__(self, int_len=3, frac_len=3):
+    def __init__(
+        self,
+        int_len=3,
+        frac_len=3,
+    ):
         self.int_len = int_len
         self.frac_len = frac_len
 
@@ -305,7 +309,7 @@ class block_fp(_number_sys):
     def __init__(self, num_len=16):
         self.num_len = num_len
 
-    def convert_numsys_tensor(self, tensor):
+    def real_to_format_tensor(self, tensor):
         return block_quantize(tensor, self.num_len)
 
 
@@ -368,7 +372,7 @@ class adaptive_float(_number_sys):
         float_out = float_out.astype("float32")
         return float_out
 
-    def convert_numsys_tensor(self, tensor):
+    def real_to_format_tensor(self, tensor):
         return torch.from_numpy(
             quantize_adaptivfloat(
                 tensor.numpy(), self.bit_width, self.exp_len, bias=None

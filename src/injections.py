@@ -22,16 +22,16 @@ def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
         layerArr.append(layer)
         value.append(random_value(-1.0 * maxval, maxval))
 
-        dim1val = random.randint(0, shape[0]-1)
+        dim1val = random.randint(0, shape[0] - 1)
         dim1.append(dim1val)
         if dim >= 2:
-            dim2val = random.randint(0, shape[1]-1)
+            dim2val = random.randint(0, shape[1] - 1)
             dim2.append(dim2val)
         else:
             dim2.append(None)
 
         if dim >= 3:
-            dim3val = random.randint(0, shape[2]-1)
+            dim3val = random.randint(0, shape[2] - 1)
             dim3.append(dim3val)
         else:
             dim3.append(None)
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     if getDebug():
         printArgs()
 
-    sys.path.append(getOutputDir() + "../src/pytorchfi") #when calling from ./scripts/
+    sys.path.append(getOutputDir() + "../src/pytorchfi")  # when calling from ./scripts/
     from pytorchfi.core import fault_injection
     from pytorchfi.error_models import *
 

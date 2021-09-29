@@ -233,9 +233,8 @@ class goldeneye(core.fault_injection):
 
         baseDevice = output.get_device()
         # TO OPTIMIZE (??). Must move to CPU, then back to_device
-        print("Got here. Starting Layer Num: %d" % (self.get_curr_layer()))
-        if self.use_cuda:
-            output = output.cpu()
+
+        # convert all numbers to numsys
 
         # output.apply_(
         #     lambda val: self._flip_bit_goldeneye(
@@ -245,6 +244,10 @@ class goldeneye(core.fault_injection):
 
         # apply is too slow, we replaced it by tensor-operations-based functions
         output = self.num_sys.convert_numsys_tensor(output)
+
+        print("Got here. Starting Layer Num: %d" % (self.get_curr_layer()))
+        if self.use_cuda:
+            output = output.cpu()
 
         if self.use_cuda:
             output = output.cuda()
