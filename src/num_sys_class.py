@@ -1,3 +1,6 @@
+import torch
+import numpy as np
+from qtorch.quant import fixed_point_quantize, block_quantize
 
 
 class _number_sys:
@@ -10,8 +13,14 @@ class _number_sys:
     def real_to_format(self, num):
         raise NotImplementedError
 
+    def real_to_format_tensor(self, tensor):
+        raise NotImplementedError
+
     def format_to_real(self, bit_arr):
         raise NotImplementedError
+
+    def format_to_real_tensor(self, tensor):
+        return tensor.to(torch.float32)
 
     def single_bit_flip_in_format(self, num, bit_ind):
         bit_arr = self.real_to_format(num)
@@ -22,7 +31,7 @@ class _number_sys:
 
         return self.format_to_real(bit_arr_corrupted)
 
-    def convert_data_format(self, num, bit_ind, flip=False):
+    def convert_numsys_flip(self, num, bit_ind, flip=False):
         bit_arr = self.real_to_format(num)
 
         if flip:
@@ -30,8 +39,8 @@ class _number_sys:
 
         return self.format_to_real(bit_arr)
 
-    def real_to_format_to_real_tensor(input_tensor):
-        return input_tensor.apply_(lambda val: num_fp32().convert_data_format(val))
+    def convert_numsys_tensor(self, tensor):
+        return self.format_to_real_tensor(self.real_to_format_tensor(tensor))
 
     # HELPER FUNCTIONS
 
@@ -237,15 +246,24 @@ class num_fp32(_ieee754):
     def __init__(self):
         super(num_fp32, self).__init__()
 
+    def real_to_format_tensor(self, tensor):
+        return tensor.to(torch.float32)
+
 
 class num_fp16(_ieee754):
     def __init__(self):
         super(num_fp16, self).__init__(exp_len=5, mant_len=10)
 
+    def real_to_format_tensor(self, tensor):
+        return tensor.to(torch.float16)
+
 
 class num_bfloat16(_ieee754):
     def __init__(self):
         super(num_fp16, self).__init__(exp_len=8, mant_len=7)
+
+    def real_to_format_tensor(self, tensor):
+        return tensor.to(torch.bfloat16)
 
 
 class num_fixed_pt(_number_sys):
@@ -270,6 +288,9 @@ class num_fixed_pt(_number_sys):
 
         return list(sign) + list(int_str) + list(frac_str)
 
+    def real_to_format_tensor(self, tensor):
+        return fixed_point_quantize(tensor, self.int_ln + self.frac_len, self.frac_len)
+
     def format_to_real(self, bit_arr):
         int_str, frac_str = map(
             lambda arr: "".join(arr),
@@ -277,3 +298,79 @@ class num_fixed_pt(_number_sys):
         )
         sign = 1 if bit_arr[0] == "0" else -1
         return sign * (int(int_str, 2) + _number_sys.bin_to_frac(frac_str))
+
+
+class block_fp(_number_sys):
+    # 1 bit for sign + len(integer part) + len(frac part)
+    def __init__(self, num_len=16):
+        self.num_len = num_len
+
+    def convert_numsys_tensor(self, tensor):
+        return block_quantize(tensor, self.num_len)
+
+
+# ADAPTIVE FLOAT
+
+
+class adaptive_float(_number_sys):
+    # 1 bit for sign + len(integer part) + len(frac part)
+    def __init__(self, exp_len=8, bit_width=23, bias=None):
+        self.exp_len = exp_len
+        self.bit_width = bit_width
+        self.bias = bias
+
+    def quantize_adaptivfloat(float_arr, n_bits=8, n_exp=4, bias=None):
+        # CODE IMPORTED FROM ADAPTIVE_FLOAT: https://github.com/ttambe/AdaptivFloat
+
+        # Reference paper: https://arxiv.org/pdf/1909.13271.pdf (T. Tambe et al.)
+        n_mant = n_bits - 1 - n_exp
+
+        # 1. store sign value and do the following part as unsigned value
+        sign = np.sign(float_arr)
+        float_arr = abs(float_arr)
+
+        # 1.5  if bias not determined, auto set exponent bias by the maximum input
+        if bias == None:
+            bias_temp = np.frexp(float_arr.max())[1] - 1
+            bias = bias_temp - (2 ** n_exp - 1)
+
+        # 2. limits the range of output float point
+        min_exp = 0 + bias
+        max_exp = 2 ** (n_exp) - 1 + bias
+
+        ## min and max values of adaptivfloat
+        min_value = 2.0 ** min_exp * (1 + 2.0 ** (-n_mant))
+        max_value = (2.0 ** max_exp) * (2.0 - 2.0 ** (-n_mant))
+
+        # print(min_value, max_value)
+        ## 2.1. reduce too small values to zero
+
+        float_arr[float_arr < 0.5 * min_value] = 0
+        float_arr[(float_arr > 0.5 * min_value) * (float_arr < min_value)] = min_value
+
+        ## 2.2. reduce too large values to max value of output format
+        float_arr[float_arr > max_value] = max_value
+
+        # 3. get mant, exp (the format is different from IEEE float)
+        mant, exp = np.frexp(float_arr)
+
+        # 3.1 change mant, and exp format to IEEE float format
+        # no effect for exponent of 0 outputs
+        mant = 2 * mant
+        exp = exp - 1
+        power_exp = np.exp2(exp)
+        ## 4. quantize mantissa
+        scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
+        mant = ((mant / scale).round()) * scale
+
+        float_out = sign * power_exp * mant
+
+        float_out = float_out.astype("float32")
+        return float_out
+
+    def convert_numsys_tensor(self, tensor):
+        return torch.from_numpy(
+            quantize_adaptivfloat(
+                tensor.numpy(), self.bit_width, self.exp_len, bias=None
+            )
+        )

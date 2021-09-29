@@ -8,13 +8,30 @@ sys.path.append("./pytorchfi")
 from pytorchfi import core
 from num_sys_class import *
 
+
 class goldeneye(core.fault_injection):
-    def __init__(self, model, batch_size, input_shape=None, layer_types=None,
-                 num_sys=None, quant=None, layer_max=[], inj_order=0, **kwargs):
+    def __init__(
+        self,
+        model,
+        batch_size,
+        input_shape=None,
+        layer_types=None,
+        num_sys=None,
+        quant=None,
+        layer_max=[],
+        inj_order=0,
+        **kwargs
+    ):
         # higher abstraction than pytorchfi, decides when to inject and converts all numbers
         if input_shape is None:
             input_shape = [3, 224, 224]
-        super().__init__(model, batch_size, input_shape=input_shape, layer_types=layer_types, **kwargs)
+        super().__init__(
+            model,
+            batch_size,
+            input_shape=input_shape,
+            layer_types=layer_types,
+            **kwargs
+        )
 
         # Golden eye specific
         self.num_sys = num_sys
@@ -51,9 +68,7 @@ class goldeneye(core.fault_injection):
     def hook1_num_sys_inj1(self, in_num, bit_pos, to_inj):
         # Transform to num sys and bit flip if inj_order == 1
         flip_val = to_inj and (self.inj_order == 1 or not self.quant)
-        out_num = self.num_sys.convert_data_format(
-            in_num, bit_pos, flip=flip_val
-        )
+        out_num = self.num_sys.convert_numsys_flip(in_num, bit_pos, flip=flip_val)
         return out_num
 
     def hook2_quant(self, in_num, max_value):
@@ -117,7 +132,7 @@ class goldeneye(core.fault_injection):
         return in_num
 
     def hook5_num_sys_inj3(self, in_num, bit_pos, to_inj):
-        return self.num_sys.convert_data_format(
+        return self.num_sys.convert_numsys_flip(
             in_num, bit_pos, flip=(to_inj and (self.quant and self.inj_order == 3))
         )
 
@@ -218,22 +233,25 @@ class goldeneye(core.fault_injection):
 
         baseDevice = output.get_device()
         # TO OPTIMIZE (??). Must move to CPU, then back to_device
-        print("Got here. Starting Layer Num: %d" %(self.get_curr_layer()))
+        print("Got here. Starting Layer Num: %d" % (self.get_curr_layer()))
         if self.use_cuda:
             output = output.cpu()
 
-        output.apply_(
-            lambda val: self._flip_bit_goldeneye(
-                val, range_max, to_inj=False
-            )
-        )
+        # output.apply_(
+        #     lambda val: self._flip_bit_goldeneye(
+        #         val, range_max, to_inj=False
+        #     )
+        # )
+
+        # apply is too slow, we replaced it by tensor-operations-based functions
+        output = self.num_sys.convert_numsys_tensor(output)
 
         if self.use_cuda:
             output = output.cuda()
 
         # TODO: Double check that this does not change injected values
 
-        print("Got here. Done with Layer Num: %d" %(self.get_curr_layer()))
+        print("Got here. Done with Layer Num: %d" % (self.get_curr_layer()))
         self.updateLayer()
         if self.get_curr_layer() >= self.get_total_layers():
             self.reset_curr_layer()
