@@ -260,7 +260,7 @@ class num_fp16(_ieee754):
 
 class num_bfloat16(_ieee754):
     def __init__(self):
-        super(num_fp16, self).__init__(exp_len=8, mant_len=7)
+        super(num_bfloat16, self).__init__(exp_len=8, mant_len=7)
 
     def real_to_format_tensor(self, tensor):
         return tensor.to(torch.bfloat16)
@@ -293,7 +293,7 @@ class num_fixed_pt(_number_sys):
         return list(sign) + list(int_str) + list(frac_str)
 
     def real_to_format_tensor(self, tensor):
-        return fixed_point_quantize(tensor, self.int_ln + self.frac_len, self.frac_len)
+        return fixed_point_quantize(tensor, self.int_len + self.frac_len, self.frac_len)
 
     def format_to_real(self, bit_arr):
         int_str, frac_str = map(

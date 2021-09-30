@@ -245,7 +245,6 @@ class goldeneye(core.fault_injection):
         # apply is too slow, we replaced it by tensor-operations-based functions
         output = self.num_sys.convert_numsys_tensor(output)
 
-        print("Got here. Starting Layer Num: %d" % (self.get_curr_layer()))
         if self.use_cuda:
             output = output.cpu()
 
@@ -254,7 +253,6 @@ class goldeneye(core.fault_injection):
 
         # TODO: Double check that this does not change injected values
 
-        print("Got here. Done with Layer Num: %d" % (self.get_curr_layer()))
         self.updateLayer()
         if self.get_curr_layer() >= self.get_total_layers():
             self.reset_curr_layer()
