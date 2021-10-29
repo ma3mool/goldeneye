@@ -18,7 +18,12 @@ if __name__ == '__main__':
     if getDebug(): printArgs()
 
     # Common variables
-    name = getDNN() + "_" + getDataset() + "_" + getPrecision()
+    range_name = getDNN() + "_" + getDataset()
+    range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
+    if getQuantize_en(): name += "_" + "quant"
+
     netProfilePath = getOutputDir() + "/networkProfiles/" + name + "/"
     outPath = getOutputDir() + "/data_subset/" + name + "/"
     golden_data = load_file(netProfilePath + "golden_data")

@@ -134,8 +134,13 @@ if __name__ == "__main__":
     if getDebug(): printArgs()
 
     # PATHS
-    name = getDNN() + "_" + getDataset() + "_" + getPrecision()
-    range_path = getOutputDir() + "/networkRanges/" + name + "/"
+    range_name = getDNN() + "_" + getDataset()
+    range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
+    if getQuantize_en(): name += "_" + "quant"
+
+    range_path = getOutputDir() + "/networkRanges/" + range_name+ "/"
     profile_path= getOutputDir() + "/networkProfiles/" + name + "/"
     data_susbet_path = getOutputDir() + "/data_subset/" + name + "/"
     inj_path = getOutputDir() + "/injections/" + name + "/"

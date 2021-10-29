@@ -1,16 +1,18 @@
 import time
 import torch.nn as nn
+
+# import pytorchfi.pytorchfi.error_models
 from util import *
 from tqdm import tqdm
-from goldeneye import goldeneye
+# from goldeneye import goldeneye
 
-sys.path.append("./pytorchfi")
-from error_models_num_sys import (
-    num_fp32,
-    num_fp16,
-    num_bfloat16,
-    num_fixed_pt,
-)
+# sys.path.append("./pytorchfi")
+# from error_models_num_sys import (
+#     num_fp32,
+#     num_fp16,
+#     num_bfloat16,
+#     num_fixed_pt,
+# )
 
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
@@ -68,8 +70,12 @@ if __name__ == "__main__":
     assert inj_per_layer != -1, "The number of injections is not valid (-1)"
 
     # common variables
-    name = getDNN() + "_" + getDataset() + "_" + getPrecision()
-    range_path = getOutputDir() + "/networkRanges/" + name + "/"
+    range_name = getDNN() + "_" + getDataset()
+    range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
+    if getQuantize_en(): name += "_" + "quant"
+
     profile_path = getOutputDir() + "/networkProfiles/" + name + "/"
     data_subset_path = getOutputDir() + "/data_subset/" + name + "/"
     out_path = getOutputDir() + "/injections/" + name + "/"
@@ -123,10 +129,17 @@ if __name__ == "__main__":
         baseH = 224
         baseW = 224
     elif "CIFAR" in getDataset():
-        baseH = 224
-        baseW = 224
+        baseH = 32
+        baseW = 32
 
-    pfi_model = fault_injection(
+    # pfi_model = fault_injection(
+    #     model,
+    #     getBatchsize(),
+    #     input_shape=[baseC, baseH, baseW],
+    #     layer_types=[nn.Conv2d, nn.Linear],
+    #     use_cuda=True,
+    # )
+    pfi_model = single_bit_flip_func(
         model,
         getBatchsize(),
         input_shape=[baseC, baseH, baseW],
@@ -162,19 +175,25 @@ if __name__ == "__main__":
                 images = images.half()
 
             # injection locations
-            inj_model = goldeneye(
-                model,
-                getBatchsize(),
-                input_shape=[baseC, baseH, baseW],
-                layer_types=[nn.Conv2d, nn.Linear],
-                use_cuda=True,
-                num_sys=num_bfloat16(),
-                quant=True,
-                layer_max=[],
-                inj_order=1,
-            )
+            # inj_model = goldeneye(
+            #     model,
+            #     getBatchsize(),
+            #     input_shape=[baseC, baseH, baseW],
+            #     layer_types=[nn.Conv2d, nn.Linear],
+            #     use_cuda=True,
+            #     num_sys=num_bfloat16(),
+            #     quant=True,
+            #     layer_max=[],
+            #     inj_order=1,
+            # )
 
-            # rand_neurons_batch(
+            # inj_model = random_neuron_single_bit_inj_batched(pfi_model, ranges)
+            inj_model = random_neuron_inj_batched(pfi_model,
+                                                    min_val= abs(ranges[currLayer]) * -1,
+                                                    max_val=abs(ranges[currLayer]),
+                                                  )
+
+                                         # rand_neurons_batch(
             #     pfi_model, currLayer, currShape, maxVal, getBatchsize()
             # )
 
