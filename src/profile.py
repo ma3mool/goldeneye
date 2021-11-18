@@ -2,7 +2,7 @@ from util import *
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
-# from goldeneye import *
+from goldeneye import *
 from num_sys_class import *
 
 
@@ -29,8 +29,8 @@ def gather_golden(goldeneye, data_iter, cuda_en=True, precision='FP16', verbose=
     criterion = nn.CrossEntropyLoss(reduction='none')
     counter = 0
     for input_data in tqdm(data_iter):
-        # inf_model = goldeneye.declare_neuron_fi(function=goldeneye.apply_goldeneye_transformation)
-        inf_model = goldeneye
+        inf_model = goldeneye.declare_neuron_fi(function=goldeneye.apply_goldeneye_transformation)
+        # inf_model = goldeneye
 
         # if debug:
         #     if processed_elements >= max_elements:
@@ -115,19 +115,18 @@ if __name__ == '__main__':
     model.eval()
     torch.no_grad()
 
-    # goldeneye_model = goldeneye(
-    #     model,
-    #     getBatchsize(),
-    #     layer_types=[nn.Conv2d, nn.Linear],
-    #     use_cuda=getCUDA_en(),
-    #     num_sys=getNumSysName(getFormat()),
-    #     quant=getQuantize_en(),
-    #     layer_max=ranges,
-    #     inj_order=False,
-    # )
-#
+    goldeneye_model = goldeneye(
+        model,
+        getBatchsize(),
+        layer_types=[nn.Conv2d, nn.Linear],
+        use_cuda=getCUDA_en(),
+        num_sys=getNumSysName(getFormat()),
+        quant=getQuantize_en(),
+        layer_max=ranges,
+        inj_order=False,
+    )
 
-    goldeneye_model = model
+    # goldeneye_model = model
 
     # Golden data gathering
     golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(goldeneye_model, dataiter, \

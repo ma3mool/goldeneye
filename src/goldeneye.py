@@ -199,17 +199,18 @@ class goldeneye(core.fault_injection):
 
     def apply_goldeneye_transformation(self, module, input, output):
         corrupt_layer_set = self.get_corrupt_layer()
-        range_max = self.get_layer_max(self.get_curr_layer())
-        logging.info("curr_conv", self.get_curr_layer())
+        range_max = self.get_layer_max(self.get_current_layer())
+        logging.info("curr_conv", self.get_current_layer())
         logging.info("range_max", range_max)
 
         inj_list = list(
             filter(
-                lambda x: corrupt_layer_set[x] == self.get_curr_layer(),
+                lambda x: corrupt_layer_set[x] == self.get_current_layer(),
                 range(len(corrupt_layer_set)),
             )
         )
         for i in inj_list:
+            print("ERROR INJECTION!")
             prev_value = self.get_tensor_value(
                 output,
                 self.CORRUPT_BATCH[i],
@@ -243,16 +244,19 @@ class goldeneye(core.fault_injection):
         # )
 
         # apply is too slow, we replaced it by tensor-operations-based functions
-        output = self.num_sys.convert_numsys_tensor(output)
+        # print("Layer: ", self.get_current_layer(), ", Shape: ", output.dim(), ", Size: ", output.size())
+        # print("Layer: ", self.get_current_layer(), "Value: ", output[0][24][12][12])
+        output[:] = self.num_sys.convert_numsys_tensor(output)
+        # print("New Value:", output[0][24][12][12])
 
-        if self.use_cuda:
-            output = output.cpu()
-
-        if self.use_cuda:
-            output = output.cuda()
+        # if self.use_cuda:
+        #     output = output.cpu()
+        #
+        # if self.use_cuda:
+        #     output = output.cuda()
 
         # TODO: Double check that this does not change injected values
 
         self.updateLayer()
-        if self.get_curr_layer() >= self.get_total_layers():
-            self.reset_curr_layer()
+        if self.get_current_layer() >= self.get_total_layers():
+            self.reset_current_layer()
