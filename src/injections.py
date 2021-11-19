@@ -4,8 +4,9 @@ import torch.nn as nn
 # import pytorchfi.pytorchfi.error_models
 from util import *
 from tqdm import tqdm
-# from goldeneye import goldeneye
+from goldeneye import goldeneye
 
+from num_sys_class import *
 # sys.path.append("./pytorchfi")
 # from error_models_num_sys import (
 #     num_fp32,
@@ -14,15 +15,28 @@ from tqdm import tqdm
 #     num_fixed_pt,
 # )
 
+def getNumSysName(name):
+    if name == "fp32":
+        return num_fp32()
+    elif name == "fp16":
+        return num_fp16()
+    elif name == "bfloat16":
+        return num_bfloat16()
+    elif name == "fixedpt":
+        return num_fixed_pt()
+    else:
+        sys.exit("Number format not supported")
 
-def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
+
+def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize, function=-1):
     dim = len(shape)
     batch, layerArr, dim1, dim2, dim3, value = ([] for i in range(6))
 
     for i in range(batchsize):
         batch.append(i)
         layerArr.append(layer)
-        value.append(random_value(-1.0 * maxval, maxval))
+        if function == -1:
+            value.append(random_value(-1.0 * maxval, maxval))
 
         dim1val = random.randint(0, shape[0] - 1)
         dim1.append(dim1val)
@@ -44,7 +58,7 @@ def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
         dim1=dim1,
         dim2=dim2,
         dim3=dim3,
-        value=value,
+        function=function,
     )
 
 
@@ -64,7 +78,7 @@ if __name__ == "__main__":
 
     sys.path.append(getOutputDir() + "../src/pytorchfi")  # when calling from ./scripts/
     from pytorchfi.core import fault_injection
-    from pytorchfi.error_models import *
+    from pytorchfi.neuron_error_models import *
 
     inj_per_layer = getInjections()
     assert inj_per_layer != -1, "The number of injections is not valid (-1)"
@@ -115,14 +129,6 @@ if __name__ == "__main__":
     model.eval()
     torch.no_grad()
 
-    # TODO
-    # quantization hooks go here
-
-    # # register forward hook to the model
-    # for param in model.modules():
-    #     if isinstance(param, nn.Conv2d) or isinstance(param, nn.Linear):
-    #         param.register_forward_hook(quantize)
-
     # init PyTorchFI
     baseC = 3
     if "IMAGENET" in getDataset():
@@ -132,30 +138,42 @@ if __name__ == "__main__":
         baseH = 32
         baseW = 32
 
+    goldeneye = goldeneye(
+        model,
+        getBatchsize(),
+        input_shape=[baseC, baseH, baseW],
+        layer_types=[nn.Conv2d, nn.Linear],
+        use_cuda=getCUDA_en(),
+        num_sys=getNumSysName(getFormat()),
+        quant=getQuantize_en(),
+        layer_max=ranges,
+        inj_order=0,
+    )
+
     # pfi_model = fault_injection(
+    #     model,
+    #     getBatchsize(),
+    #     input_shape=[baseC, baseH, baseW],
+    #     layer_types=[nn.Conv2d, nn.Linear],
+    #     use_cuda=getCUDA_en(),
+    # )
+    # pfi_model = single_bit_flip_func(
     #     model,
     #     getBatchsize(),
     #     input_shape=[baseC, baseH, baseW],
     #     layer_types=[nn.Conv2d, nn.Linear],
     #     use_cuda=True,
     # )
-    pfi_model = single_bit_flip_func(
-        model,
-        getBatchsize(),
-        input_shape=[baseC, baseH, baseW],
-        layer_types=[nn.Conv2d, nn.Linear],
-        use_cuda=True,
-    )
 
     if getDebug():
-        print(pfi_model.print_pytorchfi_layer_summary())
+        print(goldeneye.print_pytorchfi_layer_summary())
 
-    assert pfi_model.get_total_layers() == total_layers
-    shapes = pfi_model.get_output_size()
+    assert goldeneye.get_total_layers() == total_layers
+    shapes = goldeneye.get_output_size()
 
     # ERROR INJECTION CAMPAIGN
     start_time = time.time()
-    for currLayer in tqdm(range(pfi_model.get_total_layers()), desc="Layers"):
+    for currLayer in tqdm(range(goldeneye.get_total_layers()), desc="Layers"):
         layerInjects = []
 
         maxVal = ranges[currLayer]
@@ -174,31 +192,34 @@ if __name__ == "__main__":
             if getPrecision() == "FP16":
                 images = images.half()
 
-            # injection locations
-            # inj_model = goldeneye(
-            #     model,
-            #     getBatchsize(),
-            #     input_shape=[baseC, baseH, baseW],
-            #     layer_types=[nn.Conv2d, nn.Linear],
-            #     use_cuda=True,
-            #     num_sys=num_bfloat16(),
-            #     quant=True,
-            #     layer_max=[],
-            #     inj_order=1,
-            # )
 
             # inj_model = random_neuron_single_bit_inj_batched(pfi_model, ranges)
-            inj_model = random_neuron_inj_batched(pfi_model,
-                                                    min_val= abs(ranges[currLayer]) * -1,
-                                                    max_val=abs(ranges[currLayer]),
-                                                  )
+            # inj_model_locations = random_neuron_inj_batched(pfi_model,
+            #                                         min_val= abs(ranges[currLayer]) * -1,
+            #                                         max_val=abs(ranges[currLayer]),
+            #                                       )
 
-                                         # rand_neurons_batch(
-            #     pfi_model, currLayer, currShape, maxVal, getBatchsize()
-            # )
+            # injection locations
+            inf_model = rand_neurons_batch(goldeneye,
+                                           currLayer,
+                                           currShape,
+                                           maxVal,
+                                           getBatchsize(),
+                                           function=goldeneye.apply_goldeneye_transformation
+                                           )
+
+
+            # injection model
+            # inf_model = goldeneye.declare_neuron_fi(batch=batch_inj,
+            #                                         layer=layer_inj,
+            #                                         dim1=dim1_inj,
+            #                                         dim2=dim2_inj,
+            #                                         dim3=dim3_inj,
+            #                                         function=goldeneye.apply_goldeneye_transformation,
+            #                                         )
 
             # perform inference
-            output_inj = inj_model(images)
+            output_inj = inf_model(images)
             output_argmax = torch.argmax(output_inj, dim=1)
             output_inj_loss = criterion(output_inj, labels)
 

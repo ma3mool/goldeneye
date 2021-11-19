@@ -177,22 +177,26 @@ class goldeneye(core.fault_injection):
         # Num sys conversion + flip if inj_order = 1
 
         out_num = self.hook1_num_sys_inj1(in_num, bit_pos, to_inj)
+        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
 
         # Quantization (num_sys to int8)
 
         out_num = self.hook2_quant(out_num, max_value)
+        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
 
         # Bit flip if inj_order == 1
         if to_inj:
             out_num = self.hook3_inj2(out_num, bit_pos)
+        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
 
         # Dequant
 
         out_num = self.hook4_dequant(out_num, max_value)
+        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
 
         # Num sys conversion + flip if inj_order = 3
-
         out_num = self.hook5_num_sys_inj3(out_num, bit_pos, to_inj)
+        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
 
         # return torch.tensor(out_num, dtype=save_type)
         return torch.tensor(out_num)
@@ -203,36 +207,42 @@ class goldeneye(core.fault_injection):
         logging.info("curr_conv", self.get_current_layer())
         logging.info("range_max", range_max)
 
-        inj_list = list(
-            filter(
-                lambda x: corrupt_layer_set[x] == self.get_current_layer(),
-                range(len(corrupt_layer_set)),
-            )
-        )
-        for i in inj_list:
-            print("ERROR INJECTION!")
-            prev_value = self.get_tensor_value(
-                output,
-                self.CORRUPT_BATCH[i],
-                self.CORRUPT_DIM1[i],
-                self.CORRUPT_DIM2[i],
-                self.CORRUPT_DIM3[i],
-            )
-            rand_bit = random.randint(0, self.bits - 1)
-            logging.info("rand_bit", rand_bit)
-            new_value = self._flip_bit_goldeneye(
-                prev_value, range_max, rand_bit, to_inj=True
-            )
-            self.set_tensor_value(
-                output,
-                new_value,
-                self.CORRUPT_BATCH[i],
-                self.CORRUPT_DIM1[i],
-                self.CORRUPT_DIM2[i],
-                self.CORRUPT_DIM3[i],
+        # tensor conversions
+        output[:] = self.num_sys.convert_numsys_tensor(output)
+
+        # point injections
+        if self.inj_order is not False:
+            # print("INJECTION!")
+            inj_list = list(
+                filter(
+                    lambda x: corrupt_layer_set[x] == self.get_current_layer(),
+                    range(len(corrupt_layer_set)),
+                )
             )
 
-        baseDevice = output.get_device()
+            for i in inj_list:
+                prev_value = self.get_tensor_value(
+                    output,
+                    self.corrupt_batch[i],
+                    self.corrupt_dim1[i],
+                    self.corrupt_dim2[i],
+                    self.corrupt_dim3[i],
+                )
+                rand_bit = random.randint(0, self.bits - 1)
+                logging.info("rand_bit", rand_bit)
+                new_value = self._flip_bit_goldeneye(
+                    prev_value, range_max, rand_bit, to_inj=True
+                )
+                self.set_tensor_value(
+                    output,
+                    new_value,
+                    self.corrupt_batch[i],
+                    self.corrupt_dim1[i],
+                    self.corrupt_dim2[i],
+                    self.corrupt_dim3[i],
+                )
+
+        # baseDevice = output.get_device()
         # TO OPTIMIZE (??). Must move to CPU, then back to_device
 
         # convert all numbers to numsys
@@ -246,7 +256,6 @@ class goldeneye(core.fault_injection):
         # apply is too slow, we replaced it by tensor-operations-based functions
         # print("Layer: ", self.get_current_layer(), ", Shape: ", output.dim(), ", Size: ", output.size())
         # print("Layer: ", self.get_current_layer(), "Value: ", output[0][24][12][12])
-        output[:] = self.num_sys.convert_numsys_tensor(output)
         # print("New Value:", output[0][24][12][12])
 
         # if self.use_cuda:

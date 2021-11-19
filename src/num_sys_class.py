@@ -182,7 +182,6 @@ class _ieee754(_number_sys):
         #     n_exp=self.exp_len,
         #     use_denorm=self.denorm,
         # ).item()
-
         int_str = _number_sys.int_to_bin(int(num))
         frac_str = _number_sys.frac_to_bin(num - int(num))
 
@@ -226,9 +225,9 @@ class _ieee754(_number_sys):
         if exp_str == "0" * self.exp_len and mant_str == "0" * self.mant_len:
             return 0
         if exp_str == "1" * self.exp_len and mant_str == "0" * self.mant_len:
-            return sign * float("inf")
+            return sign * float('inf')
         if exp_str == "1" * self.exp_len and mant_str != "0" * self.mant_len:
-            return float("nan")
+            return float('nan')
 
         # Handling denormals
         if exp_str == "0" * self.exp_len and mant_str != "0" * self.mant_len:

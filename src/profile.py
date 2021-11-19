@@ -30,8 +30,6 @@ def gather_golden(goldeneye, data_iter, cuda_en=True, precision='FP16', verbose=
     counter = 0
     for input_data in tqdm(data_iter):
         inf_model = goldeneye.declare_neuron_fi(function=goldeneye.apply_goldeneye_transformation)
-        # inf_model = goldeneye
-
         # if debug:
         #     if processed_elements >= max_elements:
         #         break

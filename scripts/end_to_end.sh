@@ -17,12 +17,12 @@ VERBOSE=""
 DEBUG=""
 PRECISION="FP16" # compute fabric
 FORMAT="fp16"    # simulated format
-#QUANT="-q" # -q leave empty if you do not want quantization
+QUANT="" # -q leave empty if you do not want quantization
 #BIT_FLIP="-e" # -e leave empty if you do not want bit flip model. NOTE: -q MUST BE ENABLED TOO WITH THIS
 TRAINSET="" # -r. leave empty if using testset
 WORKERS=16
 
-INJECTIONS=12288
+INJECTIONS=${BATCH}
 
 
 
