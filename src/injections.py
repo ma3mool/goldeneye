@@ -148,6 +148,7 @@ if __name__ == "__main__":
         quant=getQuantize_en(),
         layer_max=ranges,
         inj_order=0,
+        bits=8,
     )
 
     # pfi_model = fault_injection(

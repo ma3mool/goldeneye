@@ -122,6 +122,7 @@ if __name__ == '__main__':
         quant=getQuantize_en(),
         layer_max=ranges,
         inj_order=False,
+        bits=8,
     )
 
     # goldeneye_model = model
