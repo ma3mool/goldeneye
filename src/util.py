@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 import timm
+from num_sys_class import *
 
 
 '''
@@ -460,3 +461,29 @@ def load_file(file_name, compress = True):
     fileIn= cPickle.load(f)
     f.close()
     return fileIn
+
+#################################################################
+################### HELPER METHODS FOR NUMSYS ###################
+#################################################################
+def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
+    # common number systems in PyTorch
+    if name == "fp32":
+        return num_fp32()
+    elif name == "fp16":
+        return num_fp16()
+    elif name == "bfloat16":
+        return num_bfloat16()
+
+    # generic number systems in PyTorch
+    elif name == "fp_n":
+        return num_float_n(exp_len=radix_up, mant_len=radix_down)
+    elif name == "fixedpt":
+        return num_fixed_pt(int_len=radix_up, frac_len=radix_down)
+    elif name == "block_fp":
+        return block_fp(num_len=bits)
+    elif name == "adaptive_fp":
+        return adaptive_float(n_bits=bits,n_exp=radix_up, bias=bias)
+
+    else:
+        sys.exit("Number format not supported")
+

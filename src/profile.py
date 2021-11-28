@@ -3,20 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from goldeneye import *
-from num_sys_class import *
 
-
-def getNumSysName(name):
-    if name == "fp32":
-        return num_fp32()
-    elif name == "fp16":
-        return num_fp16()
-    elif name == "bfloat16":
-        return num_bfloat16()
-    elif name == "fixedpt":
-        return num_fixed_pt()
-    else:
-        sys.exit("Number format not supported")
 
 # goes through dataset and finds correctly classified images, and corresponding data
 @torch.no_grad()

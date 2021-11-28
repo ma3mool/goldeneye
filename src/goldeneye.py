@@ -34,11 +34,21 @@ class goldeneye(core.fault_injection):
         )
 
         # Golden eye specific
-        self.num_sys = num_sys
-        self.quant = quant
         self.LayerRanges = layer_max
         self.inj_order = inj_order
+
+        # for simulated number system
+        self.num_sys = num_sys
         self.bits = kwargs.get("bits", 8)
+        self.radix = kwargs.get("radix", 5)
+        self.signed = kwargs.get("signed", True)
+
+        # for quantization
+        self.quant = quant
+        self.quant_num_sys = kwargs.get("quant_numsys", None)
+        self.qbits = kwargs.get("qbits", 8)
+        self.qradix = kwargs.get("qradix", 0)
+        self.qsigned = kwargs.get("qsigned", True)
 
         # the order of injecting within the goldeneye transformation
         # 0 -> no injection, 1 -> between quantization and de-quantization, 2 -> after converting to the number system, 3 -> after dequantization, 4 -> after converting num sys
@@ -207,9 +217,6 @@ class goldeneye(core.fault_injection):
         logging.info("curr_conv", self.get_current_layer())
         logging.info("range_max", range_max)
 
-        # tensor conversions
-        output[:] = self.num_sys.convert_numsys_tensor(output)
-
         # point injections
         if self.inj_order is not False:
             # print("INJECTION!")
@@ -241,6 +248,9 @@ class goldeneye(core.fault_injection):
                     self.corrupt_dim2[i],
                     self.corrupt_dim3[i],
                 )
+
+        # tensor conversions
+        output[:] = self.num_sys.convert_numsys_tensor(output)
 
         # baseDevice = output.get_device()
         # TO OPTIMIZE (??). Must move to CPU, then back to_device

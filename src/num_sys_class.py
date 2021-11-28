@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from qtorch.quant import fixed_point_quantize, block_quantize
+from qtorch.quant import float_quantize, fixed_point_quantize, block_quantize
 
 
 class _number_sys:
@@ -255,6 +255,19 @@ class num_fp16(_ieee754):
 
     def real_to_format_tensor(self, tensor):
         return tensor.to(torch.float16)
+
+class num_float_n(_number_sys):
+    # 1 bit for sign + len(integer part) + len(frac part)
+    def __init__(
+        self,
+        exp_len=5,
+        mant_len=10,
+    ):
+        self.exp_len = exp_len
+        self.mant_len = mant_len
+
+    def real_to_format_tensor(self, tensor):
+        return float_quantize(tensor, exp=self.exp_len, man=self.mant_len)
 
 
 class num_bfloat16(_ieee754):
