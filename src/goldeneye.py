@@ -17,7 +17,7 @@ class goldeneye(core.fault_injection):
         input_shape=None,
         layer_types=None,
         num_sys=None,
-        quant=None,
+        quant=False,
         layer_max=[],
         inj_order=0,
         **kwargs
@@ -39,16 +39,14 @@ class goldeneye(core.fault_injection):
 
         # for simulated number system
         self.num_sys = num_sys
-        self.bits = kwargs.get("bits", 8)
-        self.radix = kwargs.get("radix", 5)
         self.signed = kwargs.get("signed", True)
+        self.bits = kwargs.get("bits", 16)
+        self.radix = kwargs.get("radix", 5)
 
         # for quantization
         self.quant = quant
-        self.quant_num_sys = kwargs.get("quant_numsys", None)
-        self.qbits = kwargs.get("qbits", 8)
-        self.qradix = kwargs.get("qradix", 0)
         self.qsigned = kwargs.get("qsigned", True)
+        self.qbits = kwargs.get("qbits", 8)
 
         # the order of injecting within the goldeneye transformation
         # 0 -> no injection, 1 -> between quantization and de-quantization, 2 -> after converting to the number system, 3 -> after dequantization, 4 -> after converting num sys
@@ -174,6 +172,42 @@ class goldeneye(core.fault_injection):
 
         tensor[b][dim1][dim2][dim3] = new_value
 
+    def quantizeSigned_INPLACE(self, X, B, R=1.0):
+        # normalize first
+        # max_val = getConvMax(getCurrConv())
+        # R = getConvMax(getCurrConv())
+        # X.mul_(1.0/max_val)
+        # X = X.mul_(0.5/max_val)
+
+        # actual quantization
+        # print(R)
+        S = 1.0 / R
+        getMode = "FP32" #TODO Fix
+
+        if getMode == "FP16":
+            common_tensor = torch.pow(torch.tensor(2.0).cuda().half(), 1.0 - B)
+            common_tensor_2 = torch.pow(torch.tensor(2.0).cuda().half(), B - 1.0)
+        elif getMode == "FP32":
+            common_tensor = torch.pow(torch.tensor(2.0).cuda(), 1.0 - B)
+            common_tensor_2 = torch.pow(torch.tensor(2.0).cuda(), B - 1.0)
+
+        highestVal = 1.0 - common_tensor
+        X = X.mul_(S).mul_(common_tensor_2).round_().mul_(common_tensor)
+        return torch.min(X, highestVal, out=X).mul_(R)
+
+    def quantizeUnsigned(self, X, B, R=2.0):
+        S = 2.0 / R
+        getMode = "FP32" #TODO Fix
+        if getMode == "FP32":
+            return 0.5 * R * torch.min(torch.pow(torch.tensor(2.0).cuda(), 1.0 - B) * torch.round(
+                X * S * torch.pow(torch.tensor(2.0).cuda(), B - 1.0)),
+                                       2.0 - torch.pow(torch.tensor(2.0).cuda(), 1.0 - B))
+        elif getMode == "FP16":
+            return 0.5 * R * torch.min(torch.pow(torch.tensor(2.0).cuda().half(), 1.0 - B) * torch.round(
+                X * S * torch.pow(torch.tensor(2.0).cuda().half(), B - 1.0)),
+                                       2.0 - torch.pow(torch.tensor(2.0).cuda().half(), 1.0 - B))
+
+    # operates on a single value
     def _flip_bit_goldeneye(self, orig_value, max_value, bit_pos=-1, to_inj=False):
         if to_inj == False:
             assert bit_pos == -1
@@ -249,8 +283,24 @@ class goldeneye(core.fault_injection):
                     self.corrupt_dim3[i],
                 )
 
-        # tensor conversions
-        output[:] = self.num_sys.convert_numsys_tensor(output)
+        # tensor conversions (FP32 -> Num Sys)
+        if self.quant is False:
+            output[:] = self.num_sys.convert_numsys_tensor(output)
+        else:
+            # real to numsys
+            temp1 = self.num_sys.real_to_format_tensor(output)
+
+            # quantize (scale and quant NumSys)
+            if self.qsigned:
+                temp2 = self.quantizeSigned_INPLACE(temp1, self.bits, R=range_max)
+            else:
+                temp2 = self.quantizeUnsigned(temp1, self.bits, R=range_max)
+
+
+            # numsys to real
+            temp4 = self.num_sys.format_to_real_tensor(temp2)
+            output[:] = temp4
+
 
         # baseDevice = output.get_device()
         # TO OPTIMIZE (??). Must move to CPU, then back to_device

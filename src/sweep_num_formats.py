@@ -53,7 +53,7 @@ def test_accuracy(goldeneye, data_iter, cuda_en=True, precision='FP16', verbose=
 
         if debug:
             processed_elements += len(labels)
-        # torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
 
     ave_correct = correct / counter
     ave_top1conf = measured_top1conf / counter
@@ -67,7 +67,9 @@ def save_data_df(path, file_name, data):
         os.makedirs(path)
     output = path + file_name
     df = pd.DataFrame.from_dict(data, orient='index').reset_index()
-    df.columns = ['img_id', 'correct_inf', 'inf_label', 'inf_conf', 'inf_top2diff', 'inf_loss']
+    df.columns = ['num', 'numformat', 'bitwidth', 'exp_bits', 'mantissa_bits', 'quant_en', 'qbits',
+    #               accuracy, 'top1conf', 'top2diff', 'ave_loss'
+                                ]
     df.to_pickle(output + ".df")
     df.to_csv(output + ".csv", index=False)
 
@@ -98,10 +100,12 @@ if __name__ == '__main__':
     model.eval()
     torch.no_grad()
 
+    data_sweep = {}
     FLOAT_IGNORE = 8
     num_formats = ["fp_n", "fixedpt", "block_fp", "adaptive_fp"]
     # quant_formats = {}
-    bit_widths = list(reversed(range(2, 32)))
+    bit_widths = list(reversed(range(2, 33)))
+    qbit_widths = list(reversed(range(2, 33)))
 
     count = 0
     for num_format in num_formats:
@@ -115,44 +119,78 @@ if __name__ == '__main__':
             for radix in range(1, bit_width):
                 exp_bits = bit_width - radix - 1            # also INT for fixed point
                 mantissa_bits = bit_width - exp_bits - 1    # also FRAC for fixed point
+                for quant_en in [False, True]:
+                    if quant_en:
+                        for qbits in qbit_widths:
+                            print("[%s] %d bits: (1, %d, %d), Quant: %d," %(num_format, bit_width, exp_bits, mantissa_bits, qbits))
+                            count += 1
 
-                print("[%s] %d bits: (1, %d, %d)" %(num_format, bit_width, exp_bits, mantissa_bits))
-                count += 1
-    print("Count:", count)
-                goldeneye_model = goldeneye(
-                    model,
-                    getBatchsize(),
-                    layer_types=[nn.Conv2d, nn.Linear],
-                    use_cuda=getCUDA_en(),
-                    layer_max=ranges,
+                            # goldeneye_model = goldeneye(
+                            #     model,
+                            #     getBatchsize(),
+                            #     layer_types=[nn.Conv2d, nn.Linear],
+                            #     use_cuda=getCUDA_en(),
+                            #
+                            #     # number system
+                            #     num_sys=getNumSysName(num_format),
+                            #     signed=True,
+                            #     bits=8,
+                            #     radix=radix,
+                            #
+                            #     # quantization
+                            #     layer_max=ranges,
+                            #     quant=quant_en,
+                            #     qsigned=True,
+                            #     qbits=qbits,
+                            #
+                            #     inj_order=False,
+                            # )
 
-                    # number system
-                    num_sys=getNumSysName(num_format),
-                    signed=True,
-                    bits=8,
-                    radix=radix,
+                            # # Golden data gathering
+                            # accuracy, top1conf, top2diff, ave_loss = test_accuracy(goldeneye_model, dataiter, \
+                            #                                                        getBatchsize(), precision=getPrecision(), verbose=getVerbose(), debug=getDebug())
+                            data_sweep[count] = (num_format, bit_width, exp_bits, mantissa_bits, quant_en, qbits,
+                                                 # accuracy, top1conf, top2diff, ave_loss
+                                                 )
 
-                    # quantization
-                    quant=getQuantize_en(),
-                    quant_numsys=getNumSysName(num_format),
-                    qsigned=True,
-                    qbits=8,
-                    qradix=radix,
+                    else: # no looping
+                        print("[%s] %d bits: (1, %d, %d), Quant: Disabled," %(num_format, bit_width, exp_bits, mantissa_bits))
+                        count += 1
 
-                    inj_order=False,
-                )
+                        # goldeneye_model = goldeneye(
+                        #     model,
+                        #     getBatchsize(),
+                        #     layer_types=[nn.Conv2d, nn.Linear],
+                        #     use_cuda=getCUDA_en(),
+                        #
+                        #     # number system
+                        #     num_sys=getNumSysName(num_format),
+                        #     signed=True,
+                        #     bits=8,
+                        #     radix=radix,
+                        #
+                        #     # quantization
+                        #     layer_max=ranges,
+                        #     quant=quant_en,
+                        #     qsigned=True,
+                        #
+                        #     inj_order=False,
+                        # )
+                        # # Golden data gathering
+                        # accuracy, top1conf, top2diff, ave_loss = test_accuracy(goldeneye_model, dataiter, \
+                        # getBatchsize(), precision=getPrecision(), verbose=getVerbose(), debug=getDebug())
 
-                # Golden data gathering
-                accuracy, top1conf, top2diff, ave_loss = test_accuracy(goldeneye_model, dataiter, \
-                        getBatchsize(), precision=getPrecision(), verbose=getVerbose(), debug=getDebug())
-
+                        data_sweep[count] = (num_format, bit_width, exp_bits, mantissa_bits, quant_en, -1,
+                                             # accuracy, top1conf, top2diff, ave_loss
+                                            )
     # TODO end for
 
     # Golden data gathering
-    # output_name = "golden_data"
-    # save_data(out_path, output_name, golden_data)
-    # df = save_data_df(out_path, output_name, golden_data)
+    output_name = "numsys_sweep"
+    # save_data(out_path, output_name, data_sweep)
+    df = save_data_df(out_path, output_name, data_sweep)
 
+    print("Count:", count)
     # Print Summary Statistics
     # summaryDetails = ""
     # summaryDetails += "===========================================\n"

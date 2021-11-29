@@ -110,6 +110,7 @@ if __name__ == '__main__':
         layer_max=ranges,
         inj_order=False,
         bits=8,
+        qsigned=True
     )
 
     # goldeneye_model = model
