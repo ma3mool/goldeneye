@@ -7,7 +7,7 @@ from goldeneye import *
 
 # iterates through through test dataset and returns measured accuracy on particular numsys
 @torch.no_grad()
-def test_accuracy(goldeneye, data_iter, cuda_en=True, precision='FP16', verbose=False, debug=False):
+def test_accuracy(goldeneye, data_iter, cuda_en=True, precision='FP32', verbose=False, debug=False):
     if debug:
         processed_elements = 0
         max_elements = 300
@@ -53,14 +53,132 @@ def test_accuracy(goldeneye, data_iter, cuda_en=True, precision='FP16', verbose=
 
         if debug:
             processed_elements += len(labels)
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
-    ave_correct = correct / counter
+    ave_correct = correct / counter * 100.0
     ave_top1conf = measured_top1conf / counter
     ave_top2diff = measured_top2diff / counter
     ave_loss = inf_loss / counter
 
     return ave_correct, ave_top1conf, ave_top2diff, ave_loss
+
+def run_goldeneye_profile(model, dataset, batchsize, workers,
+                          num_format, sign_numsys, bit_width, radix, bias,
+                          ranges, quant_en, qsigned, qbits, verbose=False):
+
+    exp_bits = bit_width - radix - 1  # also INT for fixed point
+    mantissa_bits = bit_width - exp_bits - 1  # also FRAC for fixed point
+
+    # if verbose:
+    #     print("[%s] %d bits: (1, %d, %d), Quant: %s, %d," %(num_format, bit_width, exp_bits, mantissa_bits, quant_en, qbits))
+    # return (0, 0, 0, 0)
+
+    dataiter = load_dataset(dataset, batchsize, workers=workers)
+
+    goldeneye_model = goldeneye(
+        model,
+        batchsize,
+        layer_types=[nn.Conv2d, nn.Linear],
+
+        use_cuda=True,
+
+        # number system
+        num_sys=getNumSysName(num_format,
+                              bits=bit_width,
+                              radix_up=exp_bits,
+                              radix_down=mantissa_bits,
+                              bias=bias),
+        signed=sign_numsys,
+
+        # quantization
+        layer_max=ranges,
+        quant=quant_en,
+        qsigned=qsigned,
+        bits=qbits,
+
+        inj_order=False,
+    )
+
+    # Golden data gathering
+    accuracy, top1conf, top2diff, ave_loss = test_accuracy(goldeneye_model,
+                                                           dataiter,
+                                                           batchsize,
+                                                           )
+    return (accuracy, top1conf, top2diff, ave_loss)
+
+
+def sweepFormat(num_format, bit_widths, qbit_widths, radices, model, dataset, batchsize, workers, ranges, float_ignore=8, verbose=False):
+    format_count = 0
+    data_sweep = {}
+    explored = {}
+
+    # expand all possible entries
+
+    file_name = out_path + num_format + "_sweep.csv"
+    with open(file_name, 'w') as fd:
+        # header
+        row_data = 'num, numformat, bitwidth, exp_bits, mantissa_bits, quant_en, qbits, accuracy, top1conf, top2diff, ave_loss\n'
+        fd.write(row_data)
+
+    for bit_width in tqdm(bit_widths):
+        # severe lack of precision in floats below FLOAT_IGNORE. Skip these
+        if "fp" in num_format and bit_width < float_ignore:
+            continue
+
+        # Sweep radix point
+        for radix in range(1, bit_width, 2):
+        # for radix in radices:
+            exp_bits = bit_width - radix - 1  # also INT for fixed point
+            mantissa_bits = bit_width - exp_bits - 1  # also FRAC for fixed point
+            for quant_en in [False, True]:
+            # for quant_en in [False]:
+                if quant_en:
+                    for qbits in qbit_widths:
+                        if qbits > bit_width:
+                            continue
+
+                        run_goldeneye_profile(model, dataset, batchsize, workers,
+                                              num_format, True, bit_width, radix, None,
+                                              ranges, quant_en, True, qbits,
+                                              verbose=verbose)
+                        format_count += 1
+                        data_sweep[format_count] = (num_format, bit_width, exp_bits, mantissa_bits, quant_en, qbits,
+                                             accuracy, top1conf, top2diff, ave_loss)
+                        # row_data = 'num, numformat, bitwidth, exp_bits, mantissa_bits, quant_en, qbits, accuracy, top1conf, top2diff, ave_loss\n'
+                        row_data = "%d, %s, %d, %d, %d, %s, %d, %f, %f, %f, %f\n" %(format_count, num_format,
+                                                                                    bit_width, exp_bits,
+                                                                                    mantissa_bits, quant_en,
+                                                                                    qbits, accuracy, top1conf,
+                                                                                    top2diff, ave_loss)
+                        with open(file_name, 'a+') as fd:
+                            fd.write(row_data)
+                else:  # no looping
+                    (accuracy, top1conf, top2diff, ave_loss) = run_goldeneye_profile(model, dataset, batchsize, workers,
+                                                                                     num_format, True, bit_width, radix, None,
+                                                                                     ranges, quant_en, True, -1,
+                                                                                     verbose=verbose
+                                                                                     )
+
+                    format_count += 1
+
+                    row_data = "%d, %s, %d, %d, %d, %s, %d, %f, %f, %f, %f\n" % (format_count, num_format,
+                                                                                 bit_width, exp_bits,
+                                                                                 mantissa_bits, quant_en,
+                                                                                 -1, accuracy, top1conf,
+                                                                                 top2diff, ave_loss)
+                    with open(file_name, 'a+') as fd:
+                        fd.write(row_data)
+
+                    data_sweep[format_count] = (num_format, bit_width, exp_bits, mantissa_bits, quant_en, -1,
+                                         accuracy, top1conf, top2diff, ave_loss)
+
+    output_name = num_format + "_sweep"
+    df = save_data_df(out_path, output_name, data_sweep)
+
+    if verbose:
+        print("Count %s: %d" %(num_format, format_count))
+
+    return format_count
 
 def save_data_df(path, file_name, data):
     if not os.path.exists(path):
@@ -68,10 +186,10 @@ def save_data_df(path, file_name, data):
     output = path + file_name
     df = pd.DataFrame.from_dict(data, orient='index').reset_index()
     df.columns = ['num', 'numformat', 'bitwidth', 'exp_bits', 'mantissa_bits', 'quant_en', 'qbits',
-    #               accuracy, 'top1conf', 'top2diff', 'ave_loss'
+                  'accuracy', 'top1conf', 'top2diff', 'ave_loss'
                                 ]
     df.to_pickle(output + ".df")
-    df.to_csv(output + ".csv", index=False)
+    # df.to_csv(output + ".csv", index=False)
 
     return df
 
@@ -86,120 +204,49 @@ if __name__ == '__main__':
     range_name = getDNN() + "_" + getDataset()
     range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
 
-    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
-    if getQuantize_en(): name += "_" + "quant"
-    out_path = getOutputDir() + "/networkProfiles/" + name + "/"
-    subset_path = getOutputDir() + "/data_subset/" + name + "/"
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision()
+    out_path = getOutputDir() + "/numsys_sweep/" + name + "/"
 
     # get ranges
     ranges = load_file(range_path + "ranges_trainset_layer")
 
     # load data and model
-    dataiter = load_dataset(getDataset(), getBatchsize(), workers = getWorkers())
     model = getNetwork(getDNN(), getDataset())
     model.eval()
     torch.no_grad()
 
-    data_sweep = {}
-    FLOAT_IGNORE = 8
-    num_formats = ["fp_n", "fixedpt", "block_fp", "adaptive_fp"]
-    # quant_formats = {}
-    bit_widths = list(reversed(range(2, 33)))
-    qbit_widths = list(reversed(range(2, 33)))
-
     count = 0
-    for num_format in num_formats:
-        # for quant_format in quant_formats:
-        for bit_width in bit_widths:
-            # severe lack of precision in floats below FLOAT_IGNORE. Skip these
-            if "fp" in num_format and bit_width < FLOAT_IGNORE:
-                continue
+    num_formats = ["fp_n", "fixedpt", "block_fp", "adaptive_fp"]
 
-            # Sweep radix point
-            for radix in range(1, bit_width):
-                exp_bits = bit_width - radix - 1            # also INT for fixed point
-                mantissa_bits = bit_width - exp_bits - 1    # also FRAC for fixed point
-                for quant_en in [False, True]:
-                    if quant_en:
-                        for qbits in qbit_widths:
-                            print("[%s] %d bits: (1, %d, %d), Quant: %d," %(num_format, bit_width, exp_bits, mantissa_bits, qbits))
-                            count += 1
+    # bit_widths = list(reversed(range(0, 33, 4)))
+    # qbit_widths = list(reversed(range(0, 33, 4)))
+    # radix_allowed = [1, 2, 4, 8, 16, 24, 31]
 
-                            # goldeneye_model = goldeneye(
-                            #     model,
-                            #     getBatchsize(),
-                            #     layer_types=[nn.Conv2d, nn.Linear],
-                            #     use_cuda=getCUDA_en(),
-                            #
-                            #     # number system
-                            #     num_sys=getNumSysName(num_format),
-                            #     signed=True,
-                            #     bits=8,
-                            #     radix=radix,
-                            #
-                            #     # quantization
-                            #     layer_max=ranges,
-                            #     quant=quant_en,
-                            #     qsigned=True,
-                            #     qbits=qbits,
-                            #
-                            #     inj_order=False,
-                            # )
+    bit_widths = [4, 8, 32]
+    qbit_widths = [2, 8]
+    radix_allowed = [1, 2, 4, 8, 16, 24, 31]
 
-                            # # Golden data gathering
-                            # accuracy, top1conf, top2diff, ave_loss = test_accuracy(goldeneye_model, dataiter, \
-                            #                                                        getBatchsize(), precision=getPrecision(), verbose=getVerbose(), debug=getDebug())
-                            data_sweep[count] = (num_format, bit_width, exp_bits, mantissa_bits, quant_en, qbits,
-                                                 # accuracy, top1conf, top2diff, ave_loss
-                                                 )
 
-                    else: # no looping
-                        print("[%s] %d bits: (1, %d, %d), Quant: Disabled," %(num_format, bit_width, exp_bits, mantissa_bits))
-                        count += 1
+    # float sweep
+    count += sweepFormat(num_formats[0], bit_widths, qbit_widths, radix_allowed,
+                         model, getDataset(), getBatchsize(), getWorkers(), ranges,
+                         verbose=getVerbose())
 
-                        # goldeneye_model = goldeneye(
-                        #     model,
-                        #     getBatchsize(),
-                        #     layer_types=[nn.Conv2d, nn.Linear],
-                        #     use_cuda=getCUDA_en(),
-                        #
-                        #     # number system
-                        #     num_sys=getNumSysName(num_format),
-                        #     signed=True,
-                        #     bits=8,
-                        #     radix=radix,
-                        #
-                        #     # quantization
-                        #     layer_max=ranges,
-                        #     quant=quant_en,
-                        #     qsigned=True,
-                        #
-                        #     inj_order=False,
-                        # )
-                        # # Golden data gathering
-                        # accuracy, top1conf, top2diff, ave_loss = test_accuracy(goldeneye_model, dataiter, \
-                        # getBatchsize(), precision=getPrecision(), verbose=getVerbose(), debug=getDebug())
+    # fxp sweep
+    # count += sweepFormat(num_formats[1], bit_widths, qbit_widths,
+    #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
+    #                      verbose=getVerbose())
 
-                        data_sweep[count] = (num_format, bit_width, exp_bits, mantissa_bits, quant_en, -1,
-                                             # accuracy, top1conf, top2diff, ave_loss
-                                            )
-    # TODO end for
-
-    # Golden data gathering
-    output_name = "numsys_sweep"
-    # save_data(out_path, output_name, data_sweep)
-    df = save_data_df(out_path, output_name, data_sweep)
-
-    print("Count:", count)
-    # Print Summary Statistics
-    # summaryDetails = ""
-    # summaryDetails += "===========================================\n"
-    # summaryDetails += "%s\n" % (name)
-    # summaryDetails += "Accuracy: \t%0.2f%%\n" % (accuracy * 100)
-    # summaryDetails += "Ave Conf: \t%0.2f%%\n" % (top1conf)
-    # summaryDetails += "Ave Top2Diff: \t%0.2f%%\n" % (top2diff)
-    # summaryDetails += "Ave Loss: \t%0.2f\n" % (ave_loss)
-    # summaryDetails += "===========================================\n"
+    # # block_fp sweep
+    # bit_widths = list(reversed(range(8, 33, 4)))
+    # count += sweepFormat(num_formats[2], bit_widths, qbit_widths,
+    #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
+    #                      verbose=getVerbose())
     #
-    # if getVerbose():
-    #     print(summaryDetails)
+    # # adaptiv_fp sweep
+    # qbit_widths = list(reversed(range(0, 33, 4)))
+    # count += sweepFormat(num_formats[3], bit_widths, qbit_widths,
+    #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
+    #                      verbose=getVerbose())
+
+    print("Total Count:", count)

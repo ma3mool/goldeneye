@@ -40,13 +40,11 @@ class goldeneye(core.fault_injection):
         # for simulated number system
         self.num_sys = num_sys
         self.signed = kwargs.get("signed", True)
-        self.bits = kwargs.get("bits", 16)
-        self.radix = kwargs.get("radix", 5)
 
         # for quantization
         self.quant = quant
         self.qsigned = kwargs.get("qsigned", True)
-        self.qbits = kwargs.get("qbits", 8)
+        self.bits = kwargs.get("bits", 8)
 
         # the order of injecting within the goldeneye transformation
         # 0 -> no injection, 1 -> between quantization and de-quantization, 2 -> after converting to the number system, 3 -> after dequantization, 4 -> after converting num sys
