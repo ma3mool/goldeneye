@@ -7,7 +7,7 @@ from goldeneye import *
 
 # goes through dataset and finds correctly classified images, and corresponding data
 @torch.no_grad()
-def gather_golden(goldeneye, data_iter, cuda_en=True, precision='FP16', verbose=False, debug=False):
+def gather_golden(goldeneye, data_iter, cuda_en=True, precision='FP32', verbose=False, debug=False):
     golden_data = {}
     processed_elements = 0
     good_imgs = 0
@@ -100,17 +100,33 @@ if __name__ == '__main__':
     model.eval()
     torch.no_grad()
 
+    exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
+    mantissa_bits = getBitwidth() - exp_bits - 1  # also FRAC for fixed point
+
+
     goldeneye_model = goldeneye(
         model,
         getBatchsize(),
         layer_types=[nn.Conv2d, nn.Linear],
         use_cuda=getCUDA_en(),
-        num_sys=getNumSysName(getFormat()),
+
+        # number format
+        signed=True,
+        num_sys=getNumSysName(getFormat(),
+                              bits=getBitwidth(),
+                              radix_up=exp_bits,
+                              radix_down=mantissa_bits,
+                              bias=getBias()),
+
+        # num_sys=getNumSysName(getFormat()),
+
+        # quantization
         quant=getQuantize_en(),
         layer_max=ranges,
-        inj_order=False,
-        bits=8,
-        qsigned=True
+        bits=getBitwidth(),
+        qsigned=True,
+
+        inj_order = getInjectionsLocation(),
     )
 
     # goldeneye_model = model

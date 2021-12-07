@@ -27,6 +27,10 @@ precision_in = ""
 output_in = ""
 cuda_in = True
 injections_in = -1
+injectionsLoc_in = 0
+radix_in = -1
+bitwidth_in = 32
+bias_in = 127
 workers_in = -1
 training_in = False
 quantize_in = False
@@ -80,6 +84,26 @@ def check_args(args=None):
                         type=int,
                         default=-1)
 
+    parser.add_argument('-I', '--injectionLocation',
+                        help='Injection Location (0-5)',
+                        type=int,
+                        default=-0)
+
+    parser.add_argument('-R', '--radix',
+                        help='Radix point for number format, from LSB',
+                        type=int,
+                        default=-1)
+
+    parser.add_argument('-B', '--bitwidth',
+                        help='Bitwidth of number format',
+                        type=int,
+                        default=32)
+
+    parser.add_argument('-a', '--bias',
+                        help='Bias value for AdaptivFloat number format',
+                        type=int,
+                        default=127)
+
     parser.add_argument('-r', '--training',
                         help='When enabled, this is training data. When disabled, this is testing data',
                         type=str2bool,
@@ -123,6 +147,7 @@ def check_args(args=None):
     results = parser.parse_args(args)
 
     global batchsize_in, dnn_in, dataset_in, format_in, precision_in, output_in, cuda_in, \
+        bitwidth_in, radix_in, bias_in, \
         injections_in, training_in, workers_in, quantize_in, \
         verbose_in, debug_in
     # global singlebitflip_in
@@ -135,6 +160,10 @@ def check_args(args=None):
     output_in = results.output
     cuda_in = results.cuda
     injections_in = results.injections
+    injectionsLoc_in = results.injectionLocation
+    radix_in = results.radix
+    bitwidth_in = results.bitwidth
+    bias_in = results.bias
     training_in = results.training
     workers_in = results.workers
     quantize_in = results.quantize
@@ -154,7 +183,14 @@ def getFormat(): return format_in
 def getPrecision(): return precision_in
 def getOutputDir(): return output_in
 def getCUDA_en(): return cuda_in
-def getInjections(): return injections_in
+def getInjections():
+    if injections_in != -1 and injectionsLoc_in == 0:
+        print("Warning: No injection location. Please include \"-I\" flag with value.")
+    return injections_in
+def getInjectionsLocation(): return injectionsLoc_in
+def getRadix(): return radix_in
+def getBitwidth(): return bitwidth_in
+def getBias(): return bias_in
 def getTraining_en(): return training_in
 def getWorkers(): return workers_in
 def getQuantize_en(): return quantize_in
@@ -167,10 +203,12 @@ def getDebug(): return debug_in
 def printArgs():
     print('BATCH SIZE: \t%d\nDNN: \t\t%s\nDATASET: \t%sFORMAT: \t%s\n' \
           'PRECISION: \t%s\nOUTPUT: \t%s\nUSE_CUDA: \t%s\n' \
-          'INJECTIONS: \t%s\nTRAINING DATA: \t%s\nWORKERS: \t%d\n' \
+          'BIT-WIDTH: \t%s\nRADIX: \t%s\nBIAS: \t%s\n' \
+          'INJECTIONS: \t%s\nINJECTIONS LOCATION: \t%s\nTRAINING DATA: \t%s\nWORKERS: \t%d\n' \
           'VERBOSE: \t%s\nDEBUG: \t\t%s\n' \
           % (batchsize_in, dnn_in, dataset_in, format_in, precision_in, output_in, cuda_in, \
-             injections_in, training_in, workers_in, verbose_in, debug_in))
+             bitwidth_in, radix_in, bias_in, \
+             injections_in, injectionsLoc_in, training_in, workers_in, verbose_in, debug_in))
 
 
 def str2bool(v):
@@ -477,7 +515,7 @@ def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
     # generic number systems in PyTorch
     elif name == "fp_n":
         return num_float_n(exp_len=radix_up, mant_len=radix_down)
-    elif name == "fixedpt":
+    elif name == "fxp_n":
         return num_fixed_pt(int_len=radix_up, frac_len=radix_down)
     elif name == "block_fp":
         return block_fp(num_len=bits)

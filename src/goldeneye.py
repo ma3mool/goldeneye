@@ -16,6 +16,7 @@ class goldeneye(core.fault_injection):
         batch_size,
         input_shape=None,
         layer_types=None,
+        precision="FP32",
         num_sys=None,
         quant=False,
         layer_max=[],
@@ -36,6 +37,7 @@ class goldeneye(core.fault_injection):
         # Golden eye specific
         self.LayerRanges = layer_max
         self.inj_order = inj_order
+        self.precision = precision
 
         # for simulated number system
         self.num_sys = num_sys
@@ -179,8 +181,8 @@ class goldeneye(core.fault_injection):
 
         # actual quantization
         # print(R)
+        getMode = self.precision
         S = 1.0 / R
-        getMode = "FP32" #TODO Fix
 
         if getMode == "FP16":
             common_tensor = torch.pow(torch.tensor(2.0).cuda().half(), 1.0 - B)
@@ -194,8 +196,9 @@ class goldeneye(core.fault_injection):
         return torch.min(X, highestVal, out=X).mul_(R)
 
     def quantizeUnsigned(self, X, B, R=2.0):
+        getMode = self.precision
         S = 2.0 / R
-        getMode = "FP32" #TODO Fix
+
         if getMode == "FP32":
             return 0.5 * R * torch.min(torch.pow(torch.tensor(2.0).cuda(), 1.0 - B) * torch.round(
                 X * S * torch.pow(torch.tensor(2.0).cuda(), B - 1.0)),
@@ -285,19 +288,11 @@ class goldeneye(core.fault_injection):
         if self.quant is False:
             output[:] = self.num_sys.convert_numsys_tensor(output)
         else:
-            # real to numsys
-            temp1 = self.num_sys.real_to_format_tensor(output)
-
             # quantize (scale and quant NumSys)
             if self.qsigned:
-                temp2 = self.quantizeSigned_INPLACE(temp1, self.bits, R=range_max)
+                output[:] = self.quantizeSigned_INPLACE(output, self.bits, R=range_max)
             else:
-                temp2 = self.quantizeUnsigned(temp1, self.bits, R=range_max)
-
-
-            # numsys to real
-            temp4 = self.num_sys.format_to_real_tensor(temp2)
-            output[:] = temp4
+                output[:] = self.quantizeUnsigned(output, self.bits, R=range_max)
 
 
         # baseDevice = output.get_device()

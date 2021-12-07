@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from goldeneye import *
+import math
 
 
 # iterates through through test dataset and returns measured accuracy on particular numsys
@@ -79,7 +80,7 @@ def run_goldeneye_profile(model, dataset, batchsize, workers,
         model,
         batchsize,
         layer_types=[nn.Conv2d, nn.Linear],
-
+        precision=getPrecision(),
         use_cuda=True,
 
         # number system
@@ -106,71 +107,81 @@ def run_goldeneye_profile(model, dataset, batchsize, workers,
                                                            )
     return (accuracy, top1conf, top2diff, ave_loss)
 
-
-def sweepFormat(num_format, bit_widths, qbit_widths, radices, model, dataset, batchsize, workers, ranges, float_ignore=8, verbose=False):
+def sweepFormat(threshold, num_format, bit_widths, qbit_widths, radices, model, dataset, batchsize, workers, ranges, float_ignore=8, verbose=False):
     format_count = 0
     data_sweep = {}
     explored = {}
 
-    # expand all possible entries
-
     file_name = out_path + num_format + "_sweep.csv"
+
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
     with open(file_name, 'w') as fd:
         # header
         row_data = 'num, numformat, bitwidth, exp_bits, mantissa_bits, quant_en, qbits, accuracy, top1conf, top2diff, ave_loss\n'
         fd.write(row_data)
 
-    for bit_width in tqdm(bit_widths):
-        # severe lack of precision in floats below FLOAT_IGNORE. Skip these
-        if "fp" in num_format and bit_width < float_ignore:
-            continue
+    # expand all possible entries
+    bitwidth_accuracy = threshold + 1
+    gap_bitwidth = len(bit_widths)
+    curr_bitwidth = len(bit_widths)
 
-        # Sweep radix point
-        for radix in range(1, bit_width, 2):
-        # for radix in radices:
-            exp_bits = bit_width - radix - 1  # also INT for fixed point
-            mantissa_bits = bit_width - exp_bits - 1  # also FRAC for fixed point
-            for quant_en in [False, True]:
-            # for quant_en in [False]:
-                if quant_en:
-                    for qbits in qbit_widths:
-                        if qbits > bit_width:
-                            continue
+    # sweep bit-width with binary search
+    while True:
+        # update markers and break conditions
+        gap_bitwidth = int(gap_bitwidth / 2)
+        if gap_bitwidth < 1:
+            break
 
-                        run_goldeneye_profile(model, dataset, batchsize, workers,
-                                              num_format, True, bit_width, radix, None,
-                                              ranges, quant_en, True, qbits,
-                                              verbose=verbose)
-                        format_count += 1
-                        data_sweep[format_count] = (num_format, bit_width, exp_bits, mantissa_bits, quant_en, qbits,
-                                             accuracy, top1conf, top2diff, ave_loss)
-                        # row_data = 'num, numformat, bitwidth, exp_bits, mantissa_bits, quant_en, qbits, accuracy, top1conf, top2diff, ave_loss\n'
-                        row_data = "%d, %s, %d, %d, %d, %s, %d, %f, %f, %f, %f\n" %(format_count, num_format,
-                                                                                    bit_width, exp_bits,
-                                                                                    mantissa_bits, quant_en,
-                                                                                    qbits, accuracy, top1conf,
-                                                                                    top2diff, ave_loss)
-                        with open(file_name, 'a+') as fd:
-                            fd.write(row_data)
-                else:  # no looping
-                    (accuracy, top1conf, top2diff, ave_loss) = run_goldeneye_profile(model, dataset, batchsize, workers,
-                                                                                     num_format, True, bit_width, radix, None,
-                                                                                     ranges, quant_en, True, -1,
-                                                                                     verbose=verbose
-                                                                                     )
+        if bitwidth_accuracy > threshold:
+            curr_bitwidth = curr_bitwidth - gap_bitwidth # jump down
+        else:
+            curr_bitwidth = curr_bitwidth + gap_bitwidth # jump up
 
-                    format_count += 1
 
-                    row_data = "%d, %s, %d, %d, %d, %s, %d, %f, %f, %f, %f\n" % (format_count, num_format,
-                                                                                 bit_width, exp_bits,
-                                                                                 mantissa_bits, quant_en,
-                                                                                 -1, accuracy, top1conf,
-                                                                                 top2diff, ave_loss)
-                    with open(file_name, 'a+') as fd:
-                        fd.write(row_data)
+        best_radix_accuracy = 0.0
+        radix_accuracy = threshold + 1
+        gap_radix = curr_bitwidth
+        curr_radix = 0
 
-                    data_sweep[format_count] = (num_format, bit_width, exp_bits, mantissa_bits, quant_en, -1,
-                                         accuracy, top1conf, top2diff, ave_loss)
+        # sweep radices with binary search
+        while True:
+            gap_radix = int(gap_radix / 2)
+            if gap_radix == 0:
+                break
+
+            if radix_accuracy > threshold:
+                curr_radix = curr_radix + gap_radix  # jump down
+            else:
+                curr_radix = curr_radix - gap_radix  # jump up
+
+            # print("curr bitdwidth: ", curr_bitwidth)
+            # print("curr radix: ", curr_radix)
+
+            (radix_accuracy, top1conf, top2diff, ave_loss) = run_goldeneye_profile(model, dataset, batchsize, workers,
+                                  num_format, True, curr_bitwidth, curr_radix, None,
+                                  ranges, False, True, -1,
+                                  verbose=verbose)
+            format_count += 1
+
+            exp_bits = curr_bitwidth - curr_radix - 1  # also INT for fixed point
+            mantissa_bits = curr_bitwidth - exp_bits - 1  # also FRAC for fixed point
+            data_sweep[format_count] = (num_format, curr_bitwidth, exp_bits, mantissa_bits, False, -1,
+                                        radix_accuracy, top1conf, top2diff, ave_loss)
+
+            row_data = "%d, %s, %d, %d, %d, %s, %d, %f, %f, %f, %f\n" % (format_count, num_format,
+                                                                         curr_bitwidth, exp_bits,
+                                                                         mantissa_bits, False,
+                                                                         -1, radix_accuracy, top1conf,
+                                                                         top2diff, ave_loss)
+            with open(file_name, 'a+') as fd:
+                fd.write(row_data)
+
+            if radix_accuracy >= best_radix_accuracy:
+                best_radix_accuracy = radix_accuracy
+
+        bitwidth_accuracy = best_radix_accuracy
 
     output_name = num_format + "_sweep"
     df = save_data_df(out_path, output_name, data_sweep)
@@ -215,37 +226,52 @@ if __name__ == '__main__':
     model.eval()
     torch.no_grad()
 
+    ACCURACY_LOSS = 1.0
     count = 0
     num_formats = ["fp_n", "fixedpt", "block_fp", "adaptive_fp"]
 
-    # bit_widths = list(reversed(range(0, 33, 4)))
+    bit_widths = list(reversed(range(0, 32)))
     # qbit_widths = list(reversed(range(0, 33, 4)))
+    radix_allowed = list(reversed(range(0, 32)))
     # radix_allowed = [1, 2, 4, 8, 16, 24, 31]
 
-    bit_widths = [4, 8, 32]
-    qbit_widths = [2, 8]
-    radix_allowed = [1, 2, 4, 8, 16, 24, 31]
+    # bit_widths = [4, 8, 32]
+    qbit_widths = [8]
+    # radix_allowed = [1, 2, 4, 8, 16, 24, 31]
 
+    # get baseline
+    goldeneye_model = goldeneye(
+        model,
+        getBatchsize(),
+        layer_types=[nn.Conv2d, nn.Linear],
+        use_cuda=True,
+        layer_max=ranges,
+        # number system
+        num_sys=getNumSysName('fp32'),
+        inj_order=False,
+    )
+
+    dataiter = load_dataset(getDataset(), getBatchsize(), workers=getWorkers())
+    threshold_ = test_accuracy(goldeneye_model, dataiter)[0] - ACCURACY_LOSS
+    print("Threshold: ", threshold_)
 
     # float sweep
-    count += sweepFormat(num_formats[0], bit_widths, qbit_widths, radix_allowed,
+    count += sweepFormat(threshold_, num_formats[0], bit_widths, qbit_widths, radix_allowed,
                          model, getDataset(), getBatchsize(), getWorkers(), ranges,
                          verbose=getVerbose())
 
     # fxp sweep
-    # count += sweepFormat(num_formats[1], bit_widths, qbit_widths,
+    count += sweepFormat(threshold_, num_formats[1], bit_widths, qbit_widths, radix_allowed,
+                         model, getDataset(), getBatchsize(), getWorkers(), ranges,
+                         verbose=getVerbose())
+
+    # # block_fp sweep
+    # count += sweepFormat(threshold_, num_formats[2], bit_widths, qbit_widths, radix_allowed,
     #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
     #                      verbose=getVerbose())
 
-    # # block_fp sweep
-    # bit_widths = list(reversed(range(8, 33, 4)))
-    # count += sweepFormat(num_formats[2], bit_widths, qbit_widths,
-    #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
-    #                      verbose=getVerbose())
-    #
     # # adaptiv_fp sweep
-    # qbit_widths = list(reversed(range(0, 33, 4)))
-    # count += sweepFormat(num_formats[3], bit_widths, qbit_widths,
+    # count += sweepFormat(threshold_, num_formats[3], bit_widths, qbit_widths, radix_allowed,
     #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
     #                      verbose=getVerbose())
 

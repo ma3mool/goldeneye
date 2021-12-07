@@ -330,10 +330,17 @@ class block_fp(_number_sys):
 
 class adaptive_float(_number_sys):
     # 1 bit for sign + len(integer part) + len(frac part)
-    def __init__(self, exp_len=8, bit_width=23, bias=None):
+    def __init__(self, exp_len=8, bit_width=32, bias=None):
         self.exp_len = exp_len
         self.bit_width = bit_width
         self.bias = bias
+
+    def real_to_format_tensor(self, tensor):
+        return torch.from_numpy(
+            quantize_adaptivfloat(
+                tensor.numpy(), self.bit_width, self.exp_len, bias=None
+            )
+        )
 
     def quantize_adaptivfloat(float_arr, n_bits=8, n_exp=4, bias=None):
         # CODE IMPORTED FROM ADAPTIVE_FLOAT: https://github.com/ttambe/AdaptivFloat
@@ -384,9 +391,3 @@ class adaptive_float(_number_sys):
         float_out = float_out.astype("float32")
         return float_out
 
-    def real_to_format_tensor(self, tensor):
-        return torch.from_numpy(
-            quantize_adaptivfloat(
-                tensor.numpy(), self.bit_width, self.exp_len, bias=None
-            )
-        )
