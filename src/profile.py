@@ -113,6 +113,9 @@ if __name__ == '__main__':
     exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
     mantissa_bits = getRadix() #getBitwidth() - exp_bits - 1  # also FRAC for fixed point
 
+    # no injections during profiling
+    assert(getInjections() == -1)
+    assert(getInjectionsLocation() == 0)
 
     goldeneye_model = goldeneye(
         model,

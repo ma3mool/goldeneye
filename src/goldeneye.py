@@ -4,9 +4,9 @@ import numpy as np
 import torch
 import csv
 
-sys.path.append("./pytorchfi")
+# sys.path.append("./pytorchfi")
 from pytorchfi import core
-from num_sys_class import *
+# from num_sys_class import *
 
 
 class goldeneye(core.fault_injection):
@@ -40,7 +40,8 @@ class goldeneye(core.fault_injection):
         self.precision = precision
 
         # for simulated number system
-        self.num_sys = num_sys
+        (self.num_sys, self.num_sys_name) = num_sys
+        # self.num_sys = num_sys
         self.signed = kwargs.get("signed", True)
 
         # for quantization
@@ -254,7 +255,7 @@ class goldeneye(core.fault_injection):
         logging.info("range_max", range_max)
 
         # point injections
-        if self.inj_order is not False:
+        if self.inj_order != 0 :
             # print("INJECTION!")
             inj_list = list(
                 filter(

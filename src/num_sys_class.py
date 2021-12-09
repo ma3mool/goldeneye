@@ -1,5 +1,5 @@
 import torch
-import numpy as np
+# import numpy as np
 from qtorch.quant import float_quantize, fixed_point_quantize, block_quantize
 
 
@@ -47,59 +47,59 @@ class _number_sys:
 
     # HELPER FUNCTIONS
 
-    def quantize_float(self, float_arr, n_bits=8, n_exp=3, use_denorm=True):
-        n_mant = n_bits - 1 - n_exp
-        # 1. store sign value and do the following part as unsigned value
-        sign = np.sign(float_arr)
-        float_arr = abs(float_arr)
+    # def quantize_float(self, float_arr, n_bits=8, n_exp=3, use_denorm=True):
+    #     n_mant = n_bits - 1 - n_exp
+    #     # 1. store sign value and do the following part as unsigned value
+    #     sign = np.sign(float_arr)
+    #     float_arr = abs(float_arr)
 
-        # 2. limits the range of output float point
-        min_exp = -(2 ** (n_exp - 1)) + 2
-        max_exp = 2 ** (n_exp - 1) - 1
+        # # 2. limits the range of output float point
+        # min_exp = -(2 ** (n_exp - 1)) + 2
+        # max_exp = 2 ** (n_exp - 1) - 1
 
-        min_value = 2 ** min_exp
-        max_value = (2 ** max_exp) * (2 - 2 ** (-n_mant))
-        # print(min_value, max_value)
-        ## 2.1. reduce too small values to zero
+        # min_value = 2 ** min_exp
+        # max_value = (2 ** max_exp) * (2 - 2 ** (-n_mant))
+        # # print(min_value, max_value)
+        # ## 2.1. reduce too small values to zero
 
-        ## Handle qunatization on denormalization values
-        ### extract denorm terms
-        denorm = float_arr * (float_arr < min_value)
-        # print(denorm)
-        ## round Denormalization values
-        denorm_min = (2 ** min_exp) * (2 ** (-n_mant))
-        denorm_out = (denorm / denorm_min).round() * denorm_min
-        # print(denorm_out)
+        # ## Handle qunatization on denormalization values
+        # ### extract denorm terms
+        # denorm = float_arr * (float_arr < min_value)
+        # # print(denorm)
+        # ## round Denormalization values
+        # denorm_min = (2 ** min_exp) * (2 ** (-n_mant))
+        # denorm_out = (denorm / denorm_min).round() * denorm_min
+        # # print(denorm_out)
 
-        # Non denormal part
-        float_arr[float_arr < min_value] = 0
+        # # Non denormal part
+        # float_arr[float_arr < min_value] = 0
 
-        ## 2.2. reduce too large values to max value of output format
-        float_arr[float_arr > max_value] = max_value
+        # ## 2.2. reduce too large values to max value of output format
+        # float_arr[float_arr > max_value] = max_value
 
-        # 3. get mant, exp (the format is different from IEEE float)
-        mant, exp = np.frexp(float_arr)
+        # # 3. get mant, exp (the format is different from IEEE float)
+        # mant, exp = np.frexp(float_arr)
 
-        # 3.1 change mant, and exp format to IEEE float format
-        # no effect for exponent of 0 outputs
-        mant = 2 * mant
-        exp = exp - 1
+        # # 3.1 change mant, and exp format to IEEE float format
+        # # no effect for exponent of 0 outputs
+        # mant = 2 * mant
+        # exp = exp - 1
 
-        # exp should not be larger than max_exp
-        assert exp.max() <= max_exp
+        # # exp should not be larger than max_exp
+        # assert exp.max() <= max_exp
 
-        power_exp = np.exp2(exp)
-        ## 4. quantize mantissa
-        scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
-        mant = ((mant / scale).round()) * scale
+        # power_exp = np.exp2(exp)
+        # ## 4. quantize mantissa
+        # scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
+        # mant = ((mant / scale).round()) * scale
 
-        float_out = sign * power_exp * mant
+        # float_out = sign * power_exp * mant
 
-        ## include the denormalization
-        if use_denorm == True:
-            float_out += sign * denorm_out
-        float_out = float_out.astype("float32")
-        return float_out
+        # ## include the denormalization
+        # if use_denorm == True:
+        #     float_out += sign * denorm_out
+        # float_out = float_out.astype("float32")
+        # return float_out
 
     def int_to_bin(num):
         # integer to its binary representation
@@ -307,7 +307,7 @@ class num_fixed_pt(_number_sys):
         return list(sign) + list(int_str) + list(frac_str)
 
     def real_to_format_tensor(self, tensor):
-        return fixed_point_quantize(tensor, self.int_len + self.frac_len, self.frac_len)
+        return fixed_point_quantize(tensor, 1 + self.int_len + self.frac_len, self.frac_len)
 
     def format_to_real(self, bit_arr):
         int_str, frac_str = map(
@@ -318,9 +318,12 @@ class num_fixed_pt(_number_sys):
         return sign * (int(int_str, 2) + _number_sys.bin_to_frac(frac_str))
 
 
-class block_fp(_number_sys):
+# class block_fp(_number_sys):
+class block_fp(_ieee754):
     # 1 bit for sign + len(integer part) + len(frac part)
-    def __init__(self, num_len=16):
+
+    def __init__(self, num_len=32):
+        super(block_fp, self).__init__()
         self.num_len = num_len
 
     def real_to_format_tensor(self, tensor):
@@ -328,8 +331,6 @@ class block_fp(_number_sys):
 
 
 # ADAPTIVE FLOAT
-
-
 class adaptive_float(_number_sys):
     # 1 bit for sign + len(integer part) + len(frac part)
     def __init__(self, exp_len=8, bit_width=32, bias=None):
@@ -342,15 +343,6 @@ class adaptive_float(_number_sys):
                 float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len, bias = self.bias
         )
 
-        # print("Converting!")
-        # return torch.from_numpy(
-        #     self.quantize_adaptivfloat(
-        #         tensor.numpy(), self.bit_width, self.exp_len, bias=None
-        #         float_arr=tensor.cpu().numpy(), n_bits=self.bit_width, n_exp=self.exp_len, bias = self.bias
-                # float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len, bias = self.bias
-        # )
-        # )
-
     def quantize_adaptivfloat(self, float_arr, n_bits=8, n_exp=4, bias=None):
         # print("adaptive float!")
         # CODE IMPORTED FROM ADAPTIVE_FLOAT: https://github.com/ttambe/AdaptivFloat
@@ -359,15 +351,15 @@ class adaptive_float(_number_sys):
         n_mant = n_bits - 1 - n_exp
 
         # 1. store sign value and do the following part as unsigned value
-        # sign = np.sign(float_arr)
         sign = torch.sign(float_arr)
         float_arr = abs(float_arr)
 
         # 1.5  if bias not determined, auto set exponent bias by the maximum input
         if bias == None:
-            # bias_temp = np.frexp(float_arr.max())[1] - 1
             bias_temp = torch.frexp(float_arr.max())[1] - 1
             bias = bias_temp - (2 ** n_exp - 1)
+
+        # print("Selected Bias: ", bias)
 
         # 2. limits the range of output float point
         min_exp = 0 + bias
@@ -387,14 +379,12 @@ class adaptive_float(_number_sys):
         float_arr[float_arr > max_value] = max_value
 
         # 3. get mant, exp (the format is different from IEEE float)
-        # mant, exp = np.frexp(float_arr)
         mant, exp = torch.frexp(float_arr)
 
         # 3.1 change mant, and exp format to IEEE float format
         # no effect for exponent of 0 outputs
         mant = 2 * mant
         exp = exp - 1
-        # power_exp = np.exp2(exp)
         power_exp = torch.exp2(exp)
 
         ## 4. quantize mantissa
@@ -403,6 +393,12 @@ class adaptive_float(_number_sys):
 
         float_out = sign * power_exp * mant
 
+        float_out = float_out.type(torch.float32)
         # float_out = float_out.astype("float32")
+
+        print("======================")
+        print(float_out[0][0][0])
+        print("----------------------")
+        print(float_arr[0][0][0])
         return float_out
 

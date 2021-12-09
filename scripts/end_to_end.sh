@@ -17,9 +17,9 @@ VERBOSE=""
 DEBUG=""
 PRECISION="FP32" # compute fabric
 FORMAT="adaptive_fp"    # simulated format
-BITWIDTH=32
-RADIX=23
-BIAS=127
+BITWIDTH=16
+RADIX=11
+BIAS=""  # leave empty, or include the flag with the number: "-a -8" | ""
 QUANT="" # -q leave empty if you do not want quantization
 #BIT_FLIP="-e" # -e leave empty if you do not want bit flip model. NOTE: -q MUST BE ENABLED TOO WITH THIS
 TRAINSET="" # -r. leave empty if using testset
@@ -80,8 +80,8 @@ fi
 echo -n "Profiling ... "
 if [[ ! -f "$GOLDEN_FILE" ]]
 then
-    python3 ${SCRIPT2} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} -a ${BIAS} ${QUANT}
-    python3 ${SCRIPT3} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} -a ${BIAS} ${QUANT}
+    python3 ${SCRIPT2} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
+    python3 ${SCRIPT3} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
     echo "Complete!"
 else
     echo "Skipped."
@@ -93,10 +93,10 @@ read -p "    About to launch an error injection campaign. Are you sure? " -n 1 -
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
-python3 ${SCRIPT4} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} -a ${BIAS} ${QUANT}
+python3 ${SCRIPT4} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
 fi
 
 # postprocessing
 echo -n "Postprocessing ... "
-python3 ${SCRIPT5} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} -a ${BIAS} ${QUANT}
+python3 ${SCRIPT5} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
 echo -n "Done! "
