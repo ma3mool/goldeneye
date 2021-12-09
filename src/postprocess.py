@@ -22,6 +22,7 @@ def _layer_file_processing(data_in):
     _layer_mismatches = 0
     _layer_loss = 0
     SIZE_ = getMax()
+    skipped = 0
 
     LayerData = []
     PRINT_INJ_INFO = True
@@ -48,6 +49,11 @@ def _layer_file_processing(data_in):
             inj_loss = batch_inj_loss[injection]
             inj_label = batch_argmax[injection]
 
+            if (math.isnan(inj_loss)):
+                skipped += 1
+                continue
+
+
             # golden info
             gold_inf, gold_label, gold_conf, gold_top2diff, gold_loss = golden_data[img_id]
 
@@ -61,11 +67,12 @@ def _layer_file_processing(data_in):
             injData = (img_id, gold_conf, gold_top2diff, gold_label, inj_label, gold_loss, inj_loss)
             LayerData.append(injData)
 
-    ave_delta_loss = _layer_loss / total_injections
+    ave_delta_loss = _layer_loss / (total_injections - skipped)
 
     # standard dev
     total_injections = 0
     var_sum = 0.0
+    skipped = 0
     for batch in range(len(layer_inj_data)):
         if total_injections >= SIZE_:
             break
@@ -86,6 +93,10 @@ def _layer_file_processing(data_in):
             inj_loss = batch_inj_loss[injection]
             inj_label = batch_argmax[injection]
 
+            if (math.isnan(inj_loss)):
+                skipped += 1
+                continue
+
             # golden info
             gold_inf, gold_label, gold_conf, gold_top2diff, gold_loss = golden_data[img_id]
 
@@ -93,7 +104,10 @@ def _layer_file_processing(data_in):
             layer_for_var = abs(gold_loss - inj_loss) - ave_delta_loss
             var_sum += (layer_for_var * layer_for_var)
 
-    var_delta_loss = var_sum / (total_injections-1)
+    if skipped > 0:
+        print("Skipped", skipped)
+
+    var_delta_loss = var_sum / (total_injections - 1 - skipped)
     std_delta_loss = math.sqrt(var_delta_loss)
 
 
@@ -137,8 +151,18 @@ if __name__ == "__main__":
     range_name = getDNN() + "_" + getDataset()
     range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
 
-    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
-    if getQuantize_en(): name += "_" + "quant"
+    if getFormat() == "INT":
+        format = "INT"
+        quant_en = True
+        bitwidth_fp = 32
+    else:
+        format = getFormat()
+        bitwidth_fp = getBitwidth()
+        quant_en = False
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + format + "_bw" + str(bitwidth_fp) \
+           + "_r" + str(getRadix()) + "_bias" + str(getBias())
+    # if getQuantize_en(): name += "_" + "quant"
 
     range_path = getOutputDir() + "/networkRanges/" + range_name+ "/"
     profile_path= getOutputDir() + "/networkProfiles/" + name + "/"

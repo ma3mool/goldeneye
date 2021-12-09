@@ -6,8 +6,11 @@ from qtorch.quant import float_quantize, fixed_point_quantize, block_quantize
 class _number_sys:
     # General class for number systems, used to bit_flip using a specific format
     def bit_flip(self, bit_arr, bit_ind):
+        # interpret index from least significant bit
+        bit_ind_LSB = len(bit_arr) - 1 - bit_ind
+
         # bit_arr to bit_arr
-        bit_arr[bit_ind] = "0" if int(bit_arr[bit_ind]) else "1"
+        bit_arr[bit_ind_LSB] = "0" if int(bit_arr[bit_ind_LSB]) else "1"
         return bit_arr
 
     def real_to_format(self, num):
@@ -185,7 +188,7 @@ class _ieee754(_number_sys):
         int_str = _number_sys.int_to_bin(int(num))
         frac_str = _number_sys.frac_to_bin(num - int(num))
 
-        ind = int_str.index("1") if int_str.find("1") != -1 else 0
+        ind = len(int_str) - 1 - int_str.index("1") if int_str.find("1") != -1 else 0
 
         # init values and and
         exp_str = "0" * self.exp_len
@@ -199,8 +202,8 @@ class _ieee754(_number_sys):
         mant_str = (mant_str + ("0" * (self.mant_len - len(mant_str))))[: self.mant_len]
 
         # asserts
-        assert len(exp_str) == self.exp_len, "exp_len unknown error"
-        assert len(mant_str) == self.mant_len, "mant_len unknown error"
+        assert len(exp_str) == self.exp_len, "exp_len unknown error: %d != %d" %(len(exp_str), self.exp_len)
+        assert len(mant_str) == self.mant_len, "mant_len unknown error: %d != %d" %(len(mant_str), self.mant_str)
 
         return list("".join([sign, exp_str, mant_str]))
 
@@ -256,15 +259,14 @@ class num_fp16(_ieee754):
     def real_to_format_tensor(self, tensor):
         return tensor.to(torch.float16)
 
-class num_float_n(_number_sys):
+class num_float_n(_ieee754):
     # 1 bit for sign + len(integer part) + len(frac part)
     def __init__(
         self,
         exp_len=5,
         mant_len=10,
     ):
-        self.exp_len = exp_len
-        self.mant_len = mant_len
+        super(num_float_n, self).__init__(exp_len=exp_len, mant_len=mant_len)
 
     def real_to_format_tensor(self, tensor):
         return float_quantize(tensor, exp=self.exp_len, man=self.mant_len)
@@ -336,13 +338,17 @@ class adaptive_float(_number_sys):
         self.bias = bias
 
     def real_to_format_tensor(self, tensor):
+
+        # print("Converting!")
         return torch.from_numpy(
-            quantize_adaptivfloat(
-                tensor.numpy(), self.bit_width, self.exp_len, bias=None
+            self.quantize_adaptivfloat(
+                # tensor.numpy(), self.bit_width, self.exp_len, bias=None
+                float_arr=tensor.cpu().numpy(), n_bits=self.bit_width, n_exp=self.exp_len, bias = self.bias
             )
         )
 
-    def quantize_adaptivfloat(float_arr, n_bits=8, n_exp=4, bias=None):
+    def quantize_adaptivfloat(self, float_arr, n_bits=8, n_exp=4, bias=None):
+        # print("adaptive float!")
         # CODE IMPORTED FROM ADAPTIVE_FLOAT: https://github.com/ttambe/AdaptivFloat
 
         # Reference paper: https://arxiv.org/pdf/1909.13271.pdf (T. Tambe et al.)

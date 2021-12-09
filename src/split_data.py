@@ -21,8 +21,18 @@ if __name__ == '__main__':
     range_name = getDNN() + "_" + getDataset()
     range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
 
-    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
-    if getQuantize_en(): name += "_" + "quant"
+    if getFormat() == "INT":
+        format = "INT"
+        quant_en = True
+        bitwidth_fp = 32
+    else:
+        format = getFormat()
+        bitwidth_fp = getBitwidth()
+        quant_en = False
+
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + format + "_bw" + str(bitwidth_fp) \
+           + "_r" + str(getRadix()) + "_bias" + str(getBias())
 
     netProfilePath = getOutputDir() + "/networkProfiles/" + name + "/"
     outPath = getOutputDir() + "/data_subset/" + name + "/"

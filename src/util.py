@@ -30,7 +30,7 @@ injections_in = -1
 injectionsLoc_in = 0
 radix_in = -1
 bitwidth_in = 32
-bias_in = 127
+bias_in = None
 workers_in = -1
 training_in = False
 quantize_in = False
@@ -102,7 +102,7 @@ def check_args(args=None):
     parser.add_argument('-a', '--bias',
                         help='Bias value for AdaptivFloat number format',
                         type=int,
-                        default=127)
+                        default=None)
 
     parser.add_argument('-r', '--training',
                         help='When enabled, this is training data. When disabled, this is testing data',
@@ -148,7 +148,7 @@ def check_args(args=None):
 
     global batchsize_in, dnn_in, dataset_in, format_in, precision_in, output_in, cuda_in, \
         bitwidth_in, radix_in, bias_in, \
-        injections_in, training_in, workers_in, quantize_in, \
+        injections_in, injectionsLoc_in, training_in, workers_in, quantize_in, \
         verbose_in, debug_in
     # global singlebitflip_in
 
@@ -507,6 +507,9 @@ def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
     # common number systems in PyTorch
     if name == "fp32":
         return num_fp32()
+    if name == "INT":
+        assert(getQuantize_en())
+        return num_fp32()
     elif name == "fp16":
         return num_fp16()
     elif name == "bfloat16":
@@ -520,7 +523,7 @@ def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
     elif name == "block_fp":
         return block_fp(num_len=bits)
     elif name == "adaptive_fp":
-        return adaptive_float(n_bits=bits,n_exp=radix_up, bias=bias)
+        return adaptive_float(exp_len=radix_up, bit_width=bits, bias=bias)
 
     else:
         sys.exit("Number format not supported")

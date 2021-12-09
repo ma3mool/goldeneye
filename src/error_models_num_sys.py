@@ -88,9 +88,10 @@ class _number_sys:
 
     def convert_numsys_flip(self, num, bit_ind, flip=False):
         bit_arr = self.real_to_format(num)
-
+        print("before internal: ", bit_arr)
         if flip:
             bit_arr = self.bit_flip(bit_arr, bit_ind)
+        print("after internal: ", bit_arr)
 
         return self.format_to_real(bit_arr)
 

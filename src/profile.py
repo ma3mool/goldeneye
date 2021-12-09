@@ -86,8 +86,18 @@ if __name__ == '__main__':
     range_name = getDNN() + "_" + getDataset()
     range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
 
-    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
-    if getQuantize_en(): name += "_" + "quant"
+    if getFormat() == "INT":
+        format = "INT"
+        quant_en = True
+        bitwidth_fp = 32
+    else:
+        format = getFormat()
+        bitwidth_fp = getBitwidth()
+        quant_en = False
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + format + "_bw" + str(bitwidth_fp) \
+           + "_r" + str(getRadix()) + "_bias" + str(getBias())
+    # if getQuantize_en(): name += "_" + "quant"
     out_path = getOutputDir() + "/networkProfiles/" + name + "/"
     subset_path = getOutputDir() + "/data_subset/" + name + "/"
 
@@ -101,7 +111,7 @@ if __name__ == '__main__':
     torch.no_grad()
 
     exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
-    mantissa_bits = getBitwidth() - exp_bits - 1  # also FRAC for fixed point
+    mantissa_bits = getRadix() #getBitwidth() - exp_bits - 1  # also FRAC for fixed point
 
 
     goldeneye_model = goldeneye(
@@ -113,7 +123,7 @@ if __name__ == '__main__':
         # number format
         signed=True,
         num_sys=getNumSysName(getFormat(),
-                              bits=getBitwidth(),
+                              bits=bitwidth_fp,
                               radix_up=exp_bits,
                               radix_down=mantissa_bits,
                               bias=getBias()),
@@ -121,7 +131,7 @@ if __name__ == '__main__':
         # num_sys=getNumSysName(getFormat()),
 
         # quantization
-        quant=getQuantize_en(),
+        quant=quant_en,
         layer_max=ranges,
         bits=getBitwidth(),
         qsigned=True,
@@ -149,6 +159,12 @@ if __name__ == '__main__':
     summaryDetails += "Ave Conf: \t%0.2f%%\n" % (df["inf_conf"].mean())
     summaryDetails += "Ave Top2Diff: \t%0.2f%%\n" % (df["inf_top2diff"].mean())
     summaryDetails += "===========================================\n"
+
+    # save stats
+    stats_file = open(out_path + "stats.txt", "w+")
+    n = stats_file.write(summaryDetails)
+    stats_file.close()
+
 
     if getVerbose():
         print(summaryDetails)

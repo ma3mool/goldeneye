@@ -68,7 +68,7 @@ def run_goldeneye_profile(model, dataset, batchsize, workers,
                           ranges, quant_en, qsigned, qbits, verbose=False):
 
     exp_bits = bit_width - radix - 1  # also INT for fixed point
-    mantissa_bits = bit_width - exp_bits - 1  # also FRAC for fixed point
+    mantissa_bits = radix #bit_width - exp_bits - 1  # also FRAC for fixed point
 
     # if verbose:
     #     print("[%s] %d bits: (1, %d, %d), Quant: %s, %d," %(num_format, bit_width, exp_bits, mantissa_bits, quant_en, qbits))
@@ -166,7 +166,7 @@ def sweepFormat(threshold, num_format, bit_widths, qbit_widths, radices, model, 
             format_count += 1
 
             exp_bits = curr_bitwidth - curr_radix - 1  # also INT for fixed point
-            mantissa_bits = curr_bitwidth - exp_bits - 1  # also FRAC for fixed point
+            mantissa_bits = curr_radix #curr_bitwidth - exp_bits - 1  # also FRAC for fixed point
             data_sweep[format_count] = (num_format, curr_bitwidth, exp_bits, mantissa_bits, False, -1,
                                         radix_accuracy, top1conf, top2diff, ave_loss)
 

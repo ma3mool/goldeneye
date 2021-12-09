@@ -6,26 +6,8 @@ from util import *
 from tqdm import tqdm
 from goldeneye import goldeneye
 
-from num_sys_class import *
+# from num_sys_class import *
 # sys.path.append("./pytorchfi")
-# from error_models_num_sys import (
-#     num_fp32,
-#     num_fp16,
-#     num_bfloat16,
-#     num_fixed_pt,
-# )
-
-def getNumSysName(name):
-    if name == "fp32":
-        return num_fp32()
-    elif name == "fp16":
-        return num_fp16()
-    elif name == "bfloat16":
-        return num_bfloat16()
-    elif name == "fixedpt":
-        return num_fixed_pt()
-    else:
-        sys.exit("Number format not supported")
 
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize, function=-1):
@@ -62,11 +44,6 @@ def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize, function=-1):
     )
 
 
-def quantize(module, input, output):
-    # NOTE: pytorch recommends not using apply_ in
-    # situations where high performance is needed.
-    # The function apply_ seems to only support cpu tensors (?)
-    return output.apply_(lambda val: num_fp32().quantize(val))
 
 
 if __name__ == "__main__":
@@ -76,9 +53,9 @@ if __name__ == "__main__":
     if getDebug():
         printArgs()
 
-    sys.path.append(getOutputDir() + "../src/pytorchfi")  # when calling from ./scripts/
-    from pytorchfi.core import fault_injection
-    from pytorchfi.neuron_error_models import *
+    # sys.path.append(getOutputDir() + "../src/pytorchfi")  # when calling from ./scripts/
+    # from pytorchfi.core import fault_injection
+    # from pytorchfi.neuron_error_models import *
 
     inj_per_layer = getInjections()
     assert inj_per_layer != -1, "The number of injections is not valid (-1)"
@@ -87,8 +64,17 @@ if __name__ == "__main__":
     range_name = getDNN() + "_" + getDataset()
     range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
 
-    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + getFormat()
-    if getQuantize_en(): name += "_" + "quant"
+    if getFormat() == "INT":
+        format = "INT"
+        quant_en = True
+        bitwidth_fp = 32
+    else:
+        format = getFormat()
+        bitwidth_fp = getBitwidth()
+        quant_en = False
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + format + "_bw" + str(bitwidth_fp) \
+           + "_r" + str(getRadix()) + "_bias" + str(getBias())
 
     profile_path = getOutputDir() + "/networkProfiles/" + name + "/"
     data_subset_path = getOutputDir() + "/data_subset/" + name + "/"
@@ -138,33 +124,32 @@ if __name__ == "__main__":
         baseH = 32
         baseW = 32
 
+    exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
+    mantissa_bits = getRadix()  # also FRAC for fixed point
     goldeneye = goldeneye(
         model,
         getBatchsize(),
-        input_shape=[baseC, baseH, baseW],
         layer_types=[nn.Conv2d, nn.Linear],
         use_cuda=getCUDA_en(),
-        num_sys=getNumSysName(getFormat()),
+
+        # number format
+        signed=True,
+        num_sys=getNumSysName(getFormat(),
+                              bits=getBitwidth(),
+                              radix_up=exp_bits,
+                              radix_down=mantissa_bits,
+                              bias=getBias()),
+
+        # num_sys=getNumSysName(getFormat()),
+
+        # quantization
         quant=getQuantize_en(),
         layer_max=ranges,
-        inj_order=0,
-        bits=8,
-    )
+        bits=getBitwidth(),
+        qsigned=True,
 
-    # pfi_model = fault_injection(
-    #     model,
-    #     getBatchsize(),
-    #     input_shape=[baseC, baseH, baseW],
-    #     layer_types=[nn.Conv2d, nn.Linear],
-    #     use_cuda=getCUDA_en(),
-    # )
-    # pfi_model = single_bit_flip_func(
-    #     model,
-    #     getBatchsize(),
-    #     input_shape=[baseC, baseH, baseW],
-    #     layer_types=[nn.Conv2d, nn.Linear],
-    #     use_cuda=True,
-    # )
+        inj_order = getInjectionsLocation(),
+    )
 
     if getDebug():
         print(goldeneye.print_pytorchfi_layer_summary())
@@ -235,7 +220,7 @@ if __name__ == "__main__":
 
             samples += getBatchsize()
             torch.cuda.empty_cache()
-            print("")
+            # print("")
         pbar.close()
 
         fileName = "layer" + str(currLayer)

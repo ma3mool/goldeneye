@@ -90,7 +90,7 @@ class goldeneye(core.fault_injection):
         return in_num
 
     def hook3_inj2(self, in_num, bit_pos):
-        if self.inj_order == 1:
+        if self.inj_order == 2:
             assert (
                 self.quant
             ), "Injection at location 2 not allowed if quantization is off"
@@ -140,6 +140,7 @@ class goldeneye(core.fault_injection):
         return in_num
 
     def hook5_num_sys_inj3(self, in_num, bit_pos, to_inj):
+        # TODO only enter here if inj_order is 3. But check logic if this is the only time!
         return self.num_sys.convert_numsys_flip(
             in_num, bit_pos, flip=(to_inj and (self.quant and self.inj_order == 3))
         )
@@ -193,7 +194,8 @@ class goldeneye(core.fault_injection):
 
         highestVal = 1.0 - common_tensor
         X = X.mul_(S).mul_(common_tensor_2).round_().mul_(common_tensor)
-        return torch.min(X, highestVal, out=X).mul_(R)
+        with torch.no_grad():
+            return torch.min(X, highestVal, out=X).mul_(R)
 
     def quantizeUnsigned(self, X, B, R=2.0):
         getMode = self.precision
@@ -212,7 +214,6 @@ class goldeneye(core.fault_injection):
     def _flip_bit_goldeneye(self, orig_value, max_value, bit_pos=-1, to_inj=False):
         if to_inj == False:
             assert bit_pos == -1
-
         # save_type = orig_value.dtype
         # in_num = orig_value.item()
         in_num = orig_value
@@ -270,7 +271,7 @@ class goldeneye(core.fault_injection):
                     self.corrupt_dim2[i],
                     self.corrupt_dim3[i],
                 )
-                rand_bit = random.randint(0, self.bits - 1)
+                rand_bit = self.bits - 1 - random.randint(0, self.bits - 1)
                 logging.info("rand_bit", rand_bit)
                 new_value = self._flip_bit_goldeneye(
                     prev_value, range_max, rand_bit, to_inj=True
