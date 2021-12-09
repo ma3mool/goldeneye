@@ -140,7 +140,7 @@ class goldeneye(core.fault_injection):
         return in_num
 
     def hook5_num_sys_inj3(self, in_num, bit_pos, to_inj):
-        # TODO only enter here if inj_order is 3. But check logic if this is the only time!
+        # TODO only enter here if inj_order is 3. But check logic if this is the only time! Min: set flip = False
         return self.num_sys.convert_numsys_flip(
             in_num, bit_pos, flip=(to_inj and (self.quant and self.inj_order == 3))
         )

@@ -47,7 +47,7 @@ class _number_sys:
 
     # HELPER FUNCTIONS
 
-    def quantize_float(float_arr, n_bits=8, n_exp=3, use_denorm=True):
+    def quantize_float(self, float_arr, n_bits=8, n_exp=3, use_denorm=True):
         n_mant = n_bits - 1 - n_exp
         # 1. store sign value and do the following part as unsigned value
         sign = np.sign(float_arr)
@@ -338,14 +338,18 @@ class adaptive_float(_number_sys):
         self.bias = bias
 
     def real_to_format_tensor(self, tensor):
+        return self.quantize_adaptivfloat(
+                float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len, bias = self.bias
+        )
 
         # print("Converting!")
-        return torch.from_numpy(
-            self.quantize_adaptivfloat(
-                # tensor.numpy(), self.bit_width, self.exp_len, bias=None
-                float_arr=tensor.cpu().numpy(), n_bits=self.bit_width, n_exp=self.exp_len, bias = self.bias
-            )
-        )
+        # return torch.from_numpy(
+        #     self.quantize_adaptivfloat(
+        #         tensor.numpy(), self.bit_width, self.exp_len, bias=None
+        #         float_arr=tensor.cpu().numpy(), n_bits=self.bit_width, n_exp=self.exp_len, bias = self.bias
+                # float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len, bias = self.bias
+        # )
+        # )
 
     def quantize_adaptivfloat(self, float_arr, n_bits=8, n_exp=4, bias=None):
         # print("adaptive float!")
@@ -355,12 +359,14 @@ class adaptive_float(_number_sys):
         n_mant = n_bits - 1 - n_exp
 
         # 1. store sign value and do the following part as unsigned value
-        sign = np.sign(float_arr)
+        # sign = np.sign(float_arr)
+        sign = torch.sign(float_arr)
         float_arr = abs(float_arr)
 
         # 1.5  if bias not determined, auto set exponent bias by the maximum input
         if bias == None:
-            bias_temp = np.frexp(float_arr.max())[1] - 1
+            # bias_temp = np.frexp(float_arr.max())[1] - 1
+            bias_temp = torch.frexp(float_arr.max())[1] - 1
             bias = bias_temp - (2 ** n_exp - 1)
 
         # 2. limits the range of output float point
@@ -381,19 +387,22 @@ class adaptive_float(_number_sys):
         float_arr[float_arr > max_value] = max_value
 
         # 3. get mant, exp (the format is different from IEEE float)
-        mant, exp = np.frexp(float_arr)
+        # mant, exp = np.frexp(float_arr)
+        mant, exp = torch.frexp(float_arr)
 
         # 3.1 change mant, and exp format to IEEE float format
         # no effect for exponent of 0 outputs
         mant = 2 * mant
         exp = exp - 1
-        power_exp = np.exp2(exp)
+        # power_exp = np.exp2(exp)
+        power_exp = torch.exp2(exp)
+
         ## 4. quantize mantissa
         scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
         mant = ((mant / scale).round()) * scale
 
         float_out = sign * power_exp * mant
 
-        float_out = float_out.astype("float32")
+        # float_out = float_out.astype("float32")
         return float_out
 
