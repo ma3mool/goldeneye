@@ -223,27 +223,37 @@ class goldeneye(core.fault_injection):
 
         # Num sys conversion + flip if inj_order = 1
 
-        out_num = self.hook1_num_sys_inj1(in_num, bit_pos, to_inj)
-        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
+        if to_inj == 1:
+            out_num = self.hook1_num_sys_inj1(in_num, bit_pos, to_inj)
+
+            # range detector
+            if np.isnan(out_num) or np.isinf(out_num) or abs(out_num) > max_value:
+                if out_num < 0:
+                    return torch.tensor(-1 * max_value)
+                else:
+                    return torch.tensor(max_value)
 
         # Quantization (num_sys to int8)
+        if self.num_sys_name == "INT":
+            print("QUANTIZATION!")
+            out_num = self.hook2_quant(out_num, max_value)
+            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
-        out_num = self.hook2_quant(out_num, max_value)
-        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
+            # Bit flip if inj_order == 1
+            if to_inj == 2:
+                out_num = self.hook3_inj2(out_num, bit_pos)
+            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
-        # Bit flip if inj_order == 1
-        if to_inj:
-            out_num = self.hook3_inj2(out_num, bit_pos)
-        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
+            # Dequant
 
-        # Dequant
-
-        out_num = self.hook4_dequant(out_num, max_value)
-        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
+            out_num = self.hook4_dequant(out_num, max_value)
+            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
         # Num sys conversion + flip if inj_order = 3
-        out_num = self.hook5_num_sys_inj3(out_num, bit_pos, to_inj)
-        if np.isnan(out_num) or np.isinf(out_num): return torch.tensor(out_num)
+        if to_inj == 3:
+            print("HOOK 3!")
+            out_num = self.hook5_num_sys_inj3(out_num, bit_pos, to_inj)
+            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
         # return torch.tensor(out_num, dtype=save_type)
         return torch.tensor(out_num)
@@ -253,6 +263,7 @@ class goldeneye(core.fault_injection):
         range_max = self.get_layer_max(self.get_current_layer())
         logging.info("curr_conv", self.get_current_layer())
         logging.info("range_max", range_max)
+
 
         # point injections
         if self.inj_order != 0 :
@@ -289,6 +300,7 @@ class goldeneye(core.fault_injection):
         # tensor conversions (FP32 -> Num Sys)
         if self.quant is False:
             output[:] = self.num_sys.convert_numsys_tensor(output)
+            torch.cuda.empty_cache()
         else:
             # quantize (scale and quant NumSys)
             if self.qsigned:

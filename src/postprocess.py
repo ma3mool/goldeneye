@@ -22,7 +22,7 @@ def _layer_file_processing(data_in):
     _layer_mismatches = 0
     _layer_loss = 0
     SIZE_ = getMax()
-    skipped = 0
+    nans = 0
 
     LayerData = []
     PRINT_INJ_INFO = True
@@ -50,7 +50,7 @@ def _layer_file_processing(data_in):
             inj_label = batch_argmax[injection]
 
             if (math.isnan(inj_loss)):
-                skipped += 1
+                nans += 1
                 continue
 
 
@@ -67,12 +67,12 @@ def _layer_file_processing(data_in):
             injData = (img_id, gold_conf, gold_top2diff, gold_label, inj_label, gold_loss, inj_loss)
             LayerData.append(injData)
 
-    ave_delta_loss = _layer_loss / (total_injections - skipped)
+    ave_delta_loss = _layer_loss / (total_injections - nans )
 
     # standard dev
     total_injections = 0
     var_sum = 0.0
-    skipped = 0
+    nans = 0
     for batch in range(len(layer_inj_data)):
         if total_injections >= SIZE_:
             break
@@ -94,7 +94,7 @@ def _layer_file_processing(data_in):
             inj_label = batch_argmax[injection]
 
             if (math.isnan(inj_loss)):
-                skipped += 1
+                nans += 1
                 continue
 
             # golden info
@@ -104,10 +104,10 @@ def _layer_file_processing(data_in):
             layer_for_var = abs(gold_loss - inj_loss) - ave_delta_loss
             var_sum += (layer_for_var * layer_for_var)
 
-    if skipped > 0:
-        print("Skipped", skipped)
+    if nans > 0:
+        print("Skipped - nans", nans)
 
-    var_delta_loss = var_sum / (total_injections - 1 - skipped)
+    var_delta_loss = var_sum / (total_injections - 1 - nans )
     std_delta_loss = math.sqrt(var_delta_loss)
 
 

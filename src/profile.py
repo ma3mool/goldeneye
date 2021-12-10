@@ -52,7 +52,8 @@ def gather_golden(goldeneye, data_iter, cuda_en=True, precision='FP32', verbose=
             inf_conf = conf[img].item() * 100
             inf_top2diff = diff_top2(top2[img])
             inf_loss = output_loss[img].item()
-            img_tuple = (correct_inf, inf_label, inf_conf, inf_top2diff, inf_loss)
+            # img_tuple = (correct_inf, inf_label, inf_conf, inf_top2diff, inf_loss)
+            img_tuple = (labels[img].item(), inf_label, inf_conf, inf_top2diff, inf_loss)
             img_id = index[img].item()
 
             assert(img_id not in golden_data) # we shouldn't have duplicates in the golden data

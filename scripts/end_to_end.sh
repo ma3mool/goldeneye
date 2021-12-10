@@ -16,16 +16,16 @@ SCRIPT5="../src/postprocess.py"
 VERBOSE=""
 DEBUG=""
 PRECISION="FP32" # compute fabric
-FORMAT="adaptive_fp"    # simulated format
+FORMAT="fp_n"    # simulated format
 BITWIDTH=16
-RADIX=11
-BIAS=""  # leave empty, or include the flag with the number: "-a -8" | ""
+RADIX=10
+BIAS="" # leave empty, or include the flag with the number: "-a -8" | ""
 QUANT="" # -q leave empty if you do not want quantization
 #BIT_FLIP="-e" # -e leave empty if you do not want bit flip model. NOTE: -q MUST BE ENABLED TOO WITH THIS
 TRAINSET="" # -r. leave empty if using testset
 WORKERS=16
 
-INJECTIONS=512 #${BATCH}
+INJECTIONS=${BATCH}
 INJECTIONS_LOC=1  #1 or 2 or 3
 
 
