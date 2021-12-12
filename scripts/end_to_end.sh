@@ -16,7 +16,7 @@ SCRIPT5="../src/postprocess.py"
 VERBOSE=""
 DEBUG=""
 PRECISION="FP32" # compute fabric
-FORMAT="adaptive_fp"    # simulated format
+FORMAT="block_fp"    # simulated format
 BITWIDTH=32
 RADIX=23
 BIAS="" # leave empty, or include the flag with the number: "-a -8" | ""
@@ -26,7 +26,7 @@ TRAINSET="" # -r. leave empty if using testset
 WORKERS=16
 
 INJECTIONS=${BATCH}
-INJECTIONS_LOC=0  # {0, no injection}. {1: value} or {2, META}
+INJECTIONS_LOC=2  # {0, no injection}. {1: value} or {2, META}
                   #OLD {2, INT value}, or {3, INT scaling}, or {4, block meta}, or {5, adaptive meta}
 
 
