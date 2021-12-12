@@ -26,7 +26,7 @@ TRAINSET="" # -r. leave empty if using testset
 WORKERS=16
 
 INJECTIONS=${BATCH}
-INJECTIONS_LOC=1  # {0, no injection}. {1: value} or {2, META}
+INJECTIONS_LOC=0  # {0, no injection}. {1: value} or {2, META}
                   #OLD {2, INT value}, or {3, INT scaling}, or {4, block meta}, or {5, adaptive meta}
 
 

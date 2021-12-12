@@ -201,6 +201,23 @@ class _ieee754(_number_sys):
 
         return sign * mant * pow(2, exp)
 
+    def int_to_bitstream(self, num):
+        # sign-magnitude is used for representing the sign
+        sign = "1" if num < 0 else "0"
+        num = abs(num)
+        int_str = _number_sys.int_to_bin(int(num))
+        if len(int_str) > self.exp_len:
+            int_str = "1" * self.exp_len
+
+        # Zero padding
+        int_str = ("0" * (self.exp_len - len(int_str))) + int_str
+        return list(int_str)
+
+    def bitstream_to_int(self, bit_arr):
+        exp_str = "".join(bit_arr[1: self.exp_len + 1])
+        exp = int(exp_str, 2)
+        return exp
+
 
 class num_fp32(_ieee754):
     def __init__(self):
@@ -288,35 +305,18 @@ class block_fp(_ieee754):
         shared_exp, mant_array, other = self.quant_bfloat_split(float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len)
         return self.quant_bfloat(shared_exp, mant_array, other)
 
-    def int_to_bitstream(self, num):
-        # sign-magnitude is used for representing the sign
-        sign = "1" if num < 0 else "0"
-        num = abs(num)
-        int_str = _number_sys.int_to_bin(int(num))
-        if len(int_str) > self.exp_len:
-            int_str = "1" * self.exp_len
-
-        # Zero padding
-        int_str = ("0" * (self.exp_len - len(int_str))) + int_str
-        return list(int_str)
-
-    def bitstream_to_int(self, bit_arr):
-        exp_str = "".join(bit_arr[1: self.exp_len + 1])
-        exp = int(exp_str, 2)
-        return exp
-
     def real_to_format_tensor_meta(self, tensor):
         shared_exp, mant_array, other = self.quant_bfloat_split(float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len)
 
-        # # get bit array of shared exp
-        # exp_str = self.int_to_bitstream(shared_exp)
-        #
-        # # flip a random bit
-        # bit_ind = random.randint(0, self.exp_len - 1)
-        # bit_arr = self.bit_flip(exp_str, bit_ind)
-        #
-        # # get numerical value
-        # shared_exp = self.bitstream_to_int(bit_arr)
+        # get bit array of shared exp
+        exp_str = self.int_to_bitstream(shared_exp)
+
+        # flip a random bit
+        bit_ind = random.randint(0, self.exp_len - 1)
+        bit_arr = self.bit_flip(exp_str, bit_ind)
+
+        # get numerical value
+        shared_exp = self.bitstream_to_int(bit_arr)
 
         # plug back into tensor
         return self.quant_bfloat(shared_exp, mant_array, other)
@@ -393,7 +393,12 @@ class adaptive_float(_ieee754):
 
     def real_to_format_tensor(self, tensor):
         return self.quantize_adaptivfloat(
-                float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len, bias = self.exp_bias
+                float_arr=tensor, n_bits=self.bit_width, n_exp=self.exp_len, bias=self.exp_bias
+        )
+
+    def real_to_format_tensor_meta(self, tensor):
+        return self.quantize_adaptivfloat_meta(
+                float_arr=tensor, n_bits=self.bit_width, n_exp=self.exp_len, bias=self.exp_bias
         )
 
     def quantize_adaptivfloat(self, float_arr, n_bits=8, n_exp=4, bias=None):
@@ -411,7 +416,6 @@ class adaptive_float(_ieee754):
 
         min_value = 2. ** min_exp
         max_value = (2. ** max_exp) * (2 - 2 ** (-n_mant))
-
         # Non denormal part
         float_arr[float_arr < min_value] = 0
 
@@ -432,5 +436,55 @@ class adaptive_float(_ieee754):
         mant = ((mant / scale).round()) * scale
 
         float_out = sign * power_exp * mant
+        return float_out
 
+    def quantize_adaptivfloat_meta(self, float_arr, n_bits=8, n_exp=4, bias=None):
+        n_mant = n_bits - 1 - n_exp
+        # 1. store sign value and do the following part as unsigned value
+        sign = torch.sign(float_arr)
+        float_arr = torch.abs(float_arr)
+
+        bias_temp = torch.frexp(float_arr.max())[1] - 1
+        bias_in = (2 ** (n_exp - 1) - 1) - bias_temp
+
+        print("Before: ", bias_in)
+        # ERROR INJECTION INTO META =============
+        # get bit array of shared exp
+        exp_str = self.int_to_bitstream(bias_in)
+
+        # flip a random bit
+        bit_ind = random.randint(0, 7)
+        bit_arr = self.bit_flip(exp_str, bit_ind)
+
+        # get numerical value
+        bias = self.bitstream_to_int(bit_arr)
+        print("After: ",bias)
+        # ERROR INJECTION INTO META =============
+
+        # 2. limits the range of output float point
+        min_exp = -2 ** (n_exp - 1) + 2 - bias
+        max_exp = 2 ** (n_exp - 1) - 1 - bias
+
+        min_value = 2. ** min_exp
+        max_value = (2. ** max_exp) * (2 - 2 ** (-n_mant))
+        # Non denormal part
+        float_arr[float_arr < min_value] = 0
+
+        ## 2.2. reduce too large values to max value of output format
+        float_arr[float_arr > max_value] = max_value
+
+        # 3. get mant, exp (the format is different from IEEE float)
+        mant, exp = torch.frexp(float_arr)
+
+        # 3.1 change mant, and exp format to IEEE float format
+        # no effect for exponent of 0 outputs
+        mant = 2 * mant
+        exp = exp - 1
+
+        power_exp = torch.exp2(exp)
+        ## 4. quantize mantissa
+        scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
+        mant = ((mant / scale).round()) * scale
+
+        float_out = sign * power_exp * mant
         return float_out
