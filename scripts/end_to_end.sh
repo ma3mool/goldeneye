@@ -16,17 +16,18 @@ SCRIPT5="../src/postprocess.py"
 VERBOSE=""
 DEBUG=""
 PRECISION="FP32" # compute fabric
-FORMAT="INT"    # simulated format
-BITWIDTH=8
-RADIX=3
+FORMAT="adaptive_fp"    # simulated format
+BITWIDTH=32
+RADIX=23
 BIAS="" # leave empty, or include the flag with the number: "-a -8" | ""
-QUANT="-q" # -q leave empty if you do not want quantization
+QUANT="" # -q leave empty if you do not want quantization
 #BIT_FLIP="-e" # -e leave empty if you do not want bit flip model. NOTE: -q MUST BE ENABLED TOO WITH THIS
 TRAINSET="" # -r. leave empty if using testset
 WORKERS=16
 
 INJECTIONS=${BATCH}
-INJECTIONS_LOC=2  # {0, no injection}. {1: value} or {2, INT value}, or {3, INT scaling}, or {4, block meta}, or {5, adaptive meta}
+INJECTIONS_LOC=1  # {0, no injection}. {1: value} or {2, META}
+                  #OLD {2, INT value}, or {3, INT scaling}, or {4, block meta}, or {5, adaptive meta}
 
 
 
@@ -58,7 +59,7 @@ then
 fi
 RANGES="${NETWORK}_${DATASET}/ranges_trainset_layer.p.bz2"
 RANGES_FILE="${OUTPUT_PATH}/networkRanges/${RANGES}"
-GOLDEN="${NETWORK}_${DATASET}_real${PRECISION}_sim${FORMAT}_bw${BITWIDTH}_r${RADIX}_bias${BIAS}/golden_data.p.bz2"
+GOLDEN="${NETWORK}_${DATASET}_real${PRECISION}_sim${FORMAT}_bw${BITWIDTH}_r${RADIX}_biasNone/golden_data.p.bz2"
 GOLDEN_FILE="${OUTPUT_PATH}/networkProfiles/${GOLDEN}"
 
 
@@ -94,6 +95,7 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
 python3 ${SCRIPT4} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
+#python3 ${SCRIPT4} -b 1 -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
 fi
 
 # postprocessing

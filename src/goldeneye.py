@@ -91,7 +91,7 @@ class goldeneye(core.fault_injection):
         return in_num
 
     def hook3_inj2(self, in_num, bit_pos):
-        if self.inj_order == 2:
+        if self.inj_order == 1:
             assert (
                 self.quant
             ), "Injection at location 2 not allowed if quantization is off"
@@ -143,7 +143,7 @@ class goldeneye(core.fault_injection):
     def hook5_num_sys_inj3(self, in_num, bit_pos, to_inj):
         # TODO only enter here if inj_order is 3. But check logic if this is the only time! Min: set flip = False
         return self.num_sys.convert_numsys_flip(
-            in_num, bit_pos, flip=(to_inj and (self.quant and self.inj_order == 3))
+            in_num, bit_pos, flip=(to_inj and (self.quant and self.inj_order == 6))
         )
 
     def get_tensor_value(self, tensor, b, dim1, dim2, dim3):
@@ -225,7 +225,6 @@ class goldeneye(core.fault_injection):
 
         if to_inj == 1:
             out_num = self.hook1_num_sys_inj1(in_num, bit_pos, to_inj)
-
             # range detector
             if np.isnan(out_num) or np.isinf(out_num) or abs(out_num) > max_value:
                 if out_num < 0:
@@ -240,7 +239,7 @@ class goldeneye(core.fault_injection):
             if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
             # Bit flip if inj_order == 2
-            if to_inj == 2:
+            if to_inj == 1:
                 out_num = self.hook3_inj2(out_num, bit_pos)
             if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
@@ -263,17 +262,16 @@ class goldeneye(core.fault_injection):
         logging.info("curr_conv", self.get_current_layer())
         logging.info("range_max", range_max)
 
+        inj_list = list(
+            filter(
+                lambda x: corrupt_layer_set[x] == self.get_current_layer(),
+                range(len(corrupt_layer_set)),
+            )
+        )
 
         # point injections
-        # TODO should this be ONLY for self.inj_order == 1 ?
-        if self.inj_order == 1 or self.inj_order == 2:
-            # print("INJECTION!")
-            inj_list = list(
-                filter(
-                    lambda x: corrupt_layer_set[x] == self.get_current_layer(),
-                    range(len(corrupt_layer_set)),
-                )
-            )
+        if self.inj_order == 1:
+            print("INJECTION!")
 
             for i in inj_list:
                 prev_value = self.get_tensor_value(
@@ -286,7 +284,6 @@ class goldeneye(core.fault_injection):
 
                 if self.num_sys_name == "block_fp" and self.inj_order == 1:
                     # only select mantissa or sign bit
-                    # TODO generalize based on inj_num
                     rand_bit = random.randint(0, self.num_sys.mant_len)
                     if rand_bit == self.num_sys.mant_len:
                         rand_bit = self.bits - 1
@@ -305,25 +302,26 @@ class goldeneye(core.fault_injection):
                     self.corrupt_dim2[i],
                     self.corrupt_dim3[i],
                 )
-        elif self.inj_order == 3: # INT Scaling
-            print("SCALING META INJECTION")
-        elif self.inj_order == 4:  # BFP Exponent
-            print("BFP META INJECTION")
-        elif self.inj_order == 5:  # AFP Exponent Bias
-            print("ADAPTIVE META INJECTION")
 
-        # this is performed only for non-meta injections
-        if self.inj_order < 3:
-            # tensor conversions (FP32 -> Num Sys)
-            if self.quant is False:
-                output[:] = self.num_sys.convert_numsys_tensor(output)
-                torch.cuda.empty_cache()
+        # meta injections (tensor level)
+        if self.get_current_layer() in corrupt_layer_set and self.inj_order == 2:
+            print("META INJECTION")
+            meta_inj_en = True
+        else:
+            meta_inj_en = False
+
+        # tensor conversions (FP32 -> Num Sys)
+        # number system emulation (with meta injection support)
+        if self.quant is False:
+            output[:] = self.num_sys.convert_numsys_tensor(output, meta_inj=meta_inj_en)
+            # output = self.num_sys.convert_numsys_tensor(output, meta_inj=meta_inj_en)
+            torch.cuda.empty_cache()
+        else:
+            # quantize (scale and quant NumSys)
+            if self.qsigned:
+                output[:] = self.quantizeSigned_INPLACE(output, self.bits, R=range_max)
             else:
-                # quantize (scale and quant NumSys)
-                if self.qsigned:
-                    output[:] = self.quantizeSigned_INPLACE(output, self.bits, R=range_max)
-                else:
-                    output[:] = self.quantizeUnsigned(output, self.bits, R=range_max)
+                output[:] = self.quantizeUnsigned(output, self.bits, R=range_max)
 
         # always do this before proceeding
         self.updateLayer()

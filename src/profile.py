@@ -132,18 +132,14 @@ if __name__ == '__main__':
                               radix_down=mantissa_bits,
                               bias=getBias()),
 
-        # num_sys=getNumSysName(getFormat()),
-
         # quantization
         quant=quant_en,
         layer_max=ranges,
         bits=getBitwidth(),
         qsigned=True,
 
-        inj_order = getInjectionsLocation(),
+        inj_order=getInjectionsLocation(),
     )
-
-    # goldeneye_model = model
 
     # Golden data gathering
     golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(goldeneye_model, dataiter, \

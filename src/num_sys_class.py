@@ -1,5 +1,6 @@
 import torch
 # import numpy as np
+import random
 from qtorch.quant import float_quantize, fixed_point_quantize, block_quantize
 
 
@@ -17,6 +18,9 @@ class _number_sys:
         raise NotImplementedError
 
     def real_to_format_tensor(self, tensor):
+        raise NotImplementedError
+
+    def real_to_format_tensor_meta(self, tensor):
         raise NotImplementedError
 
     def format_to_real(self, bit_arr):
@@ -46,8 +50,12 @@ class _number_sys:
         # print("Faulty: ", self.format_to_real(bit_arr))
         return self.format_to_real(bit_arr)
 
-    def convert_numsys_tensor(self, tensor):
-        return self.format_to_real_tensor(self.real_to_format_tensor(tensor))
+
+    def convert_numsys_tensor(self, tensor, meta_inj=False):
+        if meta_inj:
+            return self.format_to_real_tensor(self.real_to_format_tensor_meta(tensor))
+        else:
+            return self.format_to_real_tensor(self.real_to_format_tensor(tensor))
 
     # HELPER FUNCTIONS
 
@@ -277,8 +285,41 @@ class block_fp(_ieee754):
         self.bit_width = bit_width
 
     def real_to_format_tensor(self, tensor):
-        a, b, c = self.quant_bfloat_split(float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len)
-        return self.quant_bfloat(a, b, c)
+        shared_exp, mant_array, other = self.quant_bfloat_split(float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len)
+        return self.quant_bfloat(shared_exp, mant_array, other)
+
+    def int_to_bitstream(self, num):
+        # sign-magnitude is used for representing the sign
+        sign = "1" if num < 0 else "0"
+        num = abs(num)
+        int_str = _number_sys.int_to_bin(int(num))
+        if len(int_str) > self.exp_len:
+            int_str = "1" * self.exp_len
+
+        # Zero padding
+        int_str = ("0" * (self.exp_len - len(int_str))) + int_str
+        return list(int_str)
+
+    def bitstream_to_int(self, bit_arr):
+        exp_str = "".join(bit_arr[1: self.exp_len + 1])
+        exp = int(exp_str, 2)
+        return exp
+
+    def real_to_format_tensor_meta(self, tensor):
+        shared_exp, mant_array, other = self.quant_bfloat_split(float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len)
+
+        # # get bit array of shared exp
+        # exp_str = self.int_to_bitstream(shared_exp)
+        #
+        # # flip a random bit
+        # bit_ind = random.randint(0, self.exp_len - 1)
+        # bit_arr = self.bit_flip(exp_str, bit_ind)
+        #
+        # # get numerical value
+        # shared_exp = self.bitstream_to_int(bit_arr)
+
+        # plug back into tensor
+        return self.quant_bfloat(shared_exp, mant_array, other)
 
     def quant_bfloat_split(self, float_arr, n_bits=8, n_exp=3):
         n_mant = n_bits - 1 - n_exp
@@ -356,39 +397,23 @@ class adaptive_float(_ieee754):
         )
 
     def quantize_adaptivfloat(self, float_arr, n_bits=8, n_exp=4, bias=None):
-        # print("adaptive float!")
-        # CODE IMPORTED FROM ADAPTIVE_FLOAT: https://github.com/ttambe/AdaptivFloat
-
-        # Reference paper: https://arxiv.org/pdf/1909.13271.pdf (T. Tambe et al.)
         n_mant = n_bits - 1 - n_exp
-
         # 1. store sign value and do the following part as unsigned value
         sign = torch.sign(float_arr)
-        float_arr.abs_()
-        # float_arr = torch.abs(float_arr)
+        float_arr = torch.abs(float_arr)
 
-        # 1.5  if bias not determined, auto set exponent bias by the maximum input
-        if bias == None:
-            bias_temp = torch.frexp(float_arr.max())[1] - 1
-            bias = bias_temp - (2 ** n_exp - 1)
-
-        assert(bias < 0)
-
-        # print("Selected Bias: ", bias)
+        bias_temp = torch.frexp(float_arr.max())[1] - 1
+        bias = (2 ** (n_exp - 1) - 1) - bias_temp
 
         # 2. limits the range of output float point
-        min_exp = 0 + bias
-        max_exp = 2 ** (n_exp) - 1 + bias
+        min_exp = -2 ** (n_exp - 1) + 2 - bias
+        max_exp = 2 ** (n_exp - 1) - 1 - bias
 
-        ## min and max values of adaptivfloat
-        min_value = 2.0 ** min_exp * (1 + 2.0 ** (-n_mant))
-        max_value = (2.0 ** max_exp) * (2.0 - 2.0 ** (-n_mant))
+        min_value = 2. ** min_exp
+        max_value = (2. ** max_exp) * (2 - 2 ** (-n_mant))
 
-        # print(min_value, max_value)
-        ## 2.1. reduce too small values to zero
-
-        float_arr[float_arr < 0.5 * min_value] = 0
-        float_arr[(float_arr > 0.5 * min_value) * (float_arr < min_value)] = min_value
+        # Non denormal part
+        float_arr[float_arr < min_value] = 0
 
         ## 2.2. reduce too large values to max value of output format
         float_arr[float_arr > max_value] = max_value
@@ -400,14 +425,12 @@ class adaptive_float(_ieee754):
         # no effect for exponent of 0 outputs
         mant = 2 * mant
         exp = exp - 1
-        power_exp = torch.exp2(exp)
 
+        power_exp = torch.exp2(exp)
         ## 4. quantize mantissa
         scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
         mant = ((mant / scale).round()) * scale
 
         float_out = sign * power_exp * mant
 
-        # float_out = float_out.type(torch.float32)
-
-        return float_out.type(torch.float32)
+        return float_out

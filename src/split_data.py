@@ -51,14 +51,15 @@ if __name__ == '__main__':
     random.seed()  #back to randomness
 
     # generate a list from the correct images in AS and DS
+    # Also drop images where top2diff is 0
     ASgoodImgs = []
     DSgoodImgs = []
     for i in analysis_set:
-        if golden_data[i][0]:
+        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0 :
             ASgoodImgs.append(i)
 
     for i in deployment_set:
-        if golden_data[i][0]:
+        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0 :
             DSgoodImgs.append(i)
 
     save_data(outPath, "rank_set_good", ASgoodImgs)

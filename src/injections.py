@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
     exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
     mantissa_bits = getRadix()  # also FRAC for fixed point
-    goldeneye = goldeneye(
+    goldeneye_model = goldeneye(
         model,
         getBatchsize(),
         layer_types=[nn.Conv2d, nn.Linear],
@@ -135,31 +135,29 @@ if __name__ == "__main__":
         # number format
         signed=True,
         num_sys=getNumSysName(getFormat(),
-                              bits=getBitwidth(),
+                              bits=bitwidth_fp,
                               radix_up=exp_bits,
                               radix_down=mantissa_bits,
                               bias=getBias()),
 
-        # num_sys=getNumSysName(getFormat()),
-
         # quantization
-        quant=getQuantize_en(),
+        quant=quant_en,
         layer_max=ranges,
         bits=getBitwidth(),
         qsigned=True,
 
-        inj_order = getInjectionsLocation(),
+        inj_order=getInjectionsLocation(),
     )
 
     if getDebug():
-        print(goldeneye.print_pytorchfi_layer_summary())
+        print(goldeneye_model.print_pytorchfi_layer_summary())
 
-    assert goldeneye.get_total_layers() == total_layers
-    shapes = goldeneye.get_output_size()
+    assert goldeneye_model.get_total_layers() == total_layers
+    shapes = goldeneye_model.get_output_size()
 
     # ERROR INJECTION CAMPAIGN
     start_time = time.time()
-    for currLayer in tqdm(range(goldeneye.get_total_layers()), desc="Layers"):
+    for currLayer in tqdm(range(goldeneye_model.get_total_layers()), desc="Layers"):
         layerInjects = []
 
         maxVal = ranges[currLayer]
@@ -186,12 +184,12 @@ if __name__ == "__main__":
             #                                       )
 
             # injection locations
-            inf_model = rand_neurons_batch(goldeneye,
+            inf_model = rand_neurons_batch(goldeneye_model,
                                            currLayer,
                                            currShape,
                                            maxVal,
                                            getBatchsize(),
-                                           function=goldeneye.apply_goldeneye_transformation
+                                           function=goldeneye_model.apply_goldeneye_transformation
                                            )
 
 
