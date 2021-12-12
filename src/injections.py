@@ -184,7 +184,8 @@ if __name__ == "__main__":
             #                                       )
 
             # injection locations
-            inf_model = rand_neurons_batch(goldeneye_model,
+            with torch.no_grad():
+                inf_model = rand_neurons_batch(goldeneye_model,
                                            currLayer,
                                            currShape,
                                            maxVal,
@@ -203,9 +204,9 @@ if __name__ == "__main__":
             #                                         )
 
             # perform inference
-            output_inj = inf_model(images)
-            output_argmax = torch.argmax(output_inj, dim=1)
-            output_inj_loss = criterion(output_inj, labels)
+                output_inj = inf_model(images)
+                output_argmax = torch.argmax(output_inj, dim=1)
+                output_inj_loss = criterion(output_inj, labels)
 
             # save results
             layerInjects.append(
