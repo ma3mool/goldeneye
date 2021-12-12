@@ -271,7 +271,7 @@ class goldeneye(core.fault_injection):
 
         # point injections
         if self.inj_order == 1:
-            print("INJECTION!")
+            # print("INJECTION!")
 
             for i in inj_list:
                 prev_value = self.get_tensor_value(
@@ -305,7 +305,7 @@ class goldeneye(core.fault_injection):
 
         # meta injections (tensor level)
         if self.get_current_layer() in corrupt_layer_set and self.inj_order == 2:
-            print("META INJECTION")
+            # print("META INJECTION")
             meta_inj_en = True
         else:
             meta_inj_en = False

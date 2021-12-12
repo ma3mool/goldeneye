@@ -405,7 +405,7 @@ class block_fp(_ieee754):
 
         # get numerical value
         shared_exp = self.bitstream_to_int(bit_arr)
-        print("SHARED EXP: ", shared_exp)
+        # print("SHARED EXP: ", shared_exp)
         ##### ERROR INJECTION INTO META DATA
 
 

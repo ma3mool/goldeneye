@@ -28,15 +28,16 @@ def gather_golden(goldeneye, data_iter, cuda_en=True, precision='FP32', verbose=
             images = images.cuda()
             labels = labels.cuda()
 
-        output = inf_model(images) # run an inference
-        output_loss = criterion(output, labels)
+        with torch.no_grad():
+            output = inf_model(images) # run an inference
+            output_loss = criterion(output, labels)
 
-        # get argmax and conf
-        output_soft = F.softmax(output,dim=1)
-        conf, argMax = output_soft.max(1)
+            # get argmax and conf
+            output_soft = F.softmax(output,dim=1)
+            conf, argMax = output_soft.max(1)
 
-        # get top2diff
-        top2 = torch.topk(output_soft, k=2, dim=1)[0]
+            # get top2diff
+            top2 = torch.topk(output_soft, k=2, dim=1)[0]
 
         for img in range(len(images)):
             counter += 1
