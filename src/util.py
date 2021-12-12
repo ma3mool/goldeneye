@@ -521,7 +521,7 @@ def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
     elif name == "fxp_n":
         return num_fixed_pt(int_len=radix_up, frac_len=radix_down), name
     elif name == "block_fp":
-        return block_fp(num_len=bits), name
+        return block_fp(bit_width=bits, exp_len=radix_up, mant_len=radix_down), name
     elif name == "adaptive_fp":
         return adaptive_float(bit_width=bits, exp_len=radix_up, mant_len=radix_down, exp_bias=bias), name
 

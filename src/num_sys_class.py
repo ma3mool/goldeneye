@@ -29,22 +29,21 @@ class _number_sys:
         bit_arr = self.real_to_format(num)
 
         assert bit_ind >= 0 and bit_ind < len(bit_arr), "bit index out of range"
-
         bit_arr_corrupted = self.bit_flip(bit_arr, bit_ind)
 
         return self.format_to_real(bit_arr_corrupted)
 
     def convert_numsys_flip(self, num, bit_ind, flip=False):
-        print("Index: ", bit_ind)
-        print("Original: ", num)
+        # print("Index: ", bit_ind)
+        # print("Original: ", num)
         bit_arr = self.real_to_format(num)
-        print("BitArray: ", bit_arr)
+        # print("B4: BitArray: ", bit_arr)
 
         if flip:
             bit_arr = self.bit_flip(bit_arr, bit_ind)
 
-        print("BitArray: ", bit_arr)
-        print("Faulty: ", self.format_to_real(bit_arr))
+        # print("A4: BitArray: ", bit_arr)
+        # print("Faulty: ", self.format_to_real(bit_arr))
         return self.format_to_real(bit_arr)
 
     def convert_numsys_tensor(self, tensor):
@@ -273,12 +272,74 @@ class num_fixed_pt(_number_sys):
 class block_fp(_ieee754):
     # 1 bit for sign + len(integer part) + len(frac part)
 
-    def __init__(self, num_len=32):
-        super(block_fp, self).__init__()
-        self.num_len = num_len
+    def __init__(self, bit_width=32, exp_len=8, mant_len=23):
+        super(block_fp, self).__init__(exp_len=exp_len, mant_len=mant_len)
+        self.bit_width = bit_width
 
     def real_to_format_tensor(self, tensor):
-        return block_quantize(tensor, self.num_len)
+        a, b, c = self.quant_bfloat_split(float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len)
+        return self.quant_bfloat(a, b, c)
+
+    def quant_bfloat_split(self, float_arr, n_bits=8, n_exp=3):
+        n_mant = n_bits - 1 - n_exp
+        # 1. store sign value and do the following part as unsigned value
+        sign = torch.sign(float_arr)
+        float_arr = torch.abs(float_arr)
+
+        # 2. limits the range of output float point
+        min_exp = -2 ** (n_exp - 1) + 2
+        max_exp = 2 ** (n_exp - 1) - 1
+
+        min_value = 2 ** min_exp
+        max_value = (2 ** max_exp) * (2 - 2 ** (-n_mant))
+
+        # print ("min_value is {}, max_value is {}".format(min_value, max_value))
+        # Non denormal part
+        float_arr[float_arr < min_value] = 0
+
+        ## 2.2. reduce too large values to max value of output format
+        float_arr[float_arr > max_value] = max_value
+
+        # 3. get mant, exp (the format is different from IEEE float)
+        mant, exp = torch.frexp(float_arr)
+
+        # 3.1 change mant, and exp format to IEEE float format
+        # no effect for exponent of 0 outputs
+        mant = 2 * mant
+        exp = exp - 1
+
+        # print ("--before adjust-- exp is {}".format(exp))
+        # print ("--before adjust-- mant is {}".format(mant))
+
+        shared_exp = exp.max()
+        exp_diff = shared_exp - exp
+        power_exp_diff = torch.exp2(exp_diff)
+        mant_adj = mant / power_exp_diff
+
+        other = [exp.shape, max_exp, n_mant, sign]
+
+        return shared_exp, mant_adj, other
+
+    def quant_bfloat(self, shared_exp, mant_adj, other):
+        exp_shape, max_exp, n_mant, sign = other
+        exp_adj = torch.full(exp_shape, shared_exp, device=mant_adj.device)
+
+        # print ("shared_exp is {} and exp_diff is {}".format(shared_exp, exp_diff))
+        # print ("exp_adj is {}".format(exp_adj))
+        # print ("mant_adj is {}".format(mant_adj))
+
+        # exp should not be larger than max_exp
+        assert (shared_exp <= max_exp)
+        power_exp = torch.exp2(exp_adj)
+
+        ## 4. quantize mantissa
+        scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
+        mant_adj = ((mant_adj / scale).round()) * scale
+
+        bfloat_out = sign * power_exp * mant_adj
+        # print ("bfloat_out: ", bfloat_out)
+
+        return bfloat_out
 
 
 # ADAPTIVE FLOAT

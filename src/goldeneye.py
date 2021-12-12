@@ -239,19 +239,18 @@ class goldeneye(core.fault_injection):
             out_num = self.hook2_quant(out_num, max_value)
             if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
-            # Bit flip if inj_order == 1
+            # Bit flip if inj_order == 2
             if to_inj == 2:
                 out_num = self.hook3_inj2(out_num, bit_pos)
             if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
             # Dequant
-
             out_num = self.hook4_dequant(out_num, max_value)
             if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
         # Num sys conversion + flip if inj_order = 3
-        if to_inj == 3:
-            print("HOOK 3!")
+        if to_inj == 6: # TODO Future datapath bitflip
+            print("HOOK 6!")
             out_num = self.hook5_num_sys_inj3(out_num, bit_pos, to_inj)
             if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
 
@@ -266,7 +265,8 @@ class goldeneye(core.fault_injection):
 
 
         # point injections
-        if self.inj_order != 0 :
+        # TODO should this be ONLY for self.inj_order == 1 ?
+        if self.inj_order == 1 or self.inj_order == 2:
             # print("INJECTION!")
             inj_list = list(
                 filter(
@@ -283,8 +283,17 @@ class goldeneye(core.fault_injection):
                     self.corrupt_dim2[i],
                     self.corrupt_dim3[i],
                 )
-                rand_bit = self.bits - 1 - random.randint(0, self.bits - 1)
+
+                if self.num_sys_name == "block_fp" and self.inj_order == 1:
+                    # only select mantissa or sign bit
+                    # TODO generalize based on inj_num
+                    rand_bit = random.randint(0, self.num_sys.mant_len)
+                    if rand_bit == self.num_sys.mant_len:
+                        rand_bit = self.bits - 1
+                else:
+                    rand_bit = self.bits - 1 - random.randint(0, self.bits - 1)
                 logging.info("rand_bit", rand_bit)
+
                 new_value = self._flip_bit_goldeneye(
                     prev_value, range_max, rand_bit, to_inj=True
                 )
@@ -296,17 +305,31 @@ class goldeneye(core.fault_injection):
                     self.corrupt_dim2[i],
                     self.corrupt_dim3[i],
                 )
+        elif self.inj_order == 3: # INT Scaling
+            print("SCALING META INJECTION")
+        elif self.inj_order == 4:  # BFP Exponent
+            print("BFP META INJECTION")
+        elif self.inj_order == 5:  # AFP Exponent Bias
+            print("ADAPTIVE META INJECTION")
 
-        # tensor conversions (FP32 -> Num Sys)
-        if self.quant is False:
-            output[:] = self.num_sys.convert_numsys_tensor(output)
-            torch.cuda.empty_cache()
-        else:
-            # quantize (scale and quant NumSys)
-            if self.qsigned:
-                output[:] = self.quantizeSigned_INPLACE(output, self.bits, R=range_max)
+        # this is performed only for non-meta injections
+        if self.inj_order < 3:
+            # tensor conversions (FP32 -> Num Sys)
+            if self.quant is False:
+                output[:] = self.num_sys.convert_numsys_tensor(output)
+                torch.cuda.empty_cache()
             else:
-                output[:] = self.quantizeUnsigned(output, self.bits, R=range_max)
+                # quantize (scale and quant NumSys)
+                if self.qsigned:
+                    output[:] = self.quantizeSigned_INPLACE(output, self.bits, R=range_max)
+                else:
+                    output[:] = self.quantizeUnsigned(output, self.bits, R=range_max)
+
+        # always do this before proceeding
+        self.updateLayer()
+        if self.get_current_layer() >= self.get_total_layers():
+            self.reset_current_layer()
+
 
 
         # baseDevice = output.get_device()
@@ -322,8 +345,8 @@ class goldeneye(core.fault_injection):
 
         # apply is too slow, we replaced it by tensor-operations-based functions
         # print("Layer: ", self.get_current_layer(), ", Shape: ", output.dim(), ", Size: ", output.size())
-        # print("Layer: ", self.get_current_layer(), "Value: ", output[0][24][12][12])
-        # print("New Value:", output[0][24][12][12])
+        # print("Layer: ", self.get_current_layer(), "Value: ", output[-1][24][12][12])
+        # print("New Value:", output[-1][24][12][12])
 
         # if self.use_cuda:
         #     output = output.cpu()
@@ -332,7 +355,3 @@ class goldeneye(core.fault_injection):
         #     output = output.cuda()
 
         # TODO: Double check that this does not change injected values
-
-        self.updateLayer()
-        if self.get_current_layer() >= self.get_total_layers():
-            self.reset_current_layer()
