@@ -88,16 +88,17 @@ def run_goldeneye_profile(model, dataset, batchsize, workers,
                               bits=bit_width,
                               radix_up=exp_bits,
                               radix_down=mantissa_bits,
-                              bias=bias),
+                              # bias=bias),
+                              ),
         signed=sign_numsys,
 
         # quantization
-        layer_max=ranges,
         quant=quant_en,
-        qsigned=qsigned,
+        layer_max=ranges,
         bits=qbits,
+        qsigned=qsigned,
 
-        inj_order=False,
+        inj_order=0,
     )
 
     # Golden data gathering
@@ -228,7 +229,7 @@ if __name__ == '__main__':
 
     ACCURACY_LOSS = 1.0
     count = 0
-    num_formats = ["fp_n", "fixedpt", "block_fp", "adaptive_fp"]
+    num_formats = ["fp_n", "fxp_n", "block_fp", "adaptive_fp"]
 
     bit_widths = list(reversed(range(0, 32)))
     # qbit_widths = list(reversed(range(0, 33, 4)))
@@ -248,7 +249,7 @@ if __name__ == '__main__':
         layer_max=ranges,
         # number system
         num_sys=getNumSysName('fp32'),
-        inj_order=False,
+        inj_order=0,
     )
 
     dataiter = load_dataset(getDataset(), getBatchsize(), workers=getWorkers())
@@ -256,23 +257,23 @@ if __name__ == '__main__':
     print("Threshold: ", threshold_)
 
     # float sweep
-    count += sweepFormat(threshold_, num_formats[0], bit_widths, qbit_widths, radix_allowed,
+    # count += sweepFormat(threshold_, num_formats[0], bit_widths, qbit_widths, radix_allowed,
+    #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
+    #                      verbose=getVerbose())
+
+
+    # block_fp sweep
+    count += sweepFormat(threshold_, num_formats[2], bit_widths, qbit_widths, radix_allowed,
+                         model, getDataset(), getBatchsize(), getWorkers(), ranges,
+                         verbose=getVerbose())
+
+    # adaptiv_fp sweep
+    count += sweepFormat(threshold_, num_formats[3], bit_widths, qbit_widths, radix_allowed,
                          model, getDataset(), getBatchsize(), getWorkers(), ranges,
                          verbose=getVerbose())
 
     # fxp sweep
-    count += sweepFormat(threshold_, num_formats[1], bit_widths, qbit_widths, radix_allowed,
+    count += sweepFormat(threshold_, num_formats[0], bit_widths, qbit_widths, radix_allowed,
                          model, getDataset(), getBatchsize(), getWorkers(), ranges,
                          verbose=getVerbose())
-
-    # # block_fp sweep
-    # count += sweepFormat(threshold_, num_formats[2], bit_widths, qbit_widths, radix_allowed,
-    #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
-    #                      verbose=getVerbose())
-
-    # # adaptiv_fp sweep
-    # count += sweepFormat(threshold_, num_formats[3], bit_widths, qbit_widths, radix_allowed,
-    #                      model, getDataset(), getBatchsize(), getWorkers(), ranges,
-    #                      verbose=getVerbose())
-
     print("Total Count:", count)
