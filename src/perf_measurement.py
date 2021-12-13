@@ -8,7 +8,7 @@ import statistics
 
 if __name__ == '__main__':
 
-    MAX_RUNS=5
+    MAX_RUNS=100
 
     # read in cmd line args
     check_args(sys.argv[1:])
