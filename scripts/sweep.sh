@@ -12,8 +12,8 @@ script="python ../src/sweep_num_formats.py"
 echo "resnet18 ..."
 time ${script} -n resnet18  -b 64   -d IMAGENET -w 16 -P FP32 -f fp32   #2&> ./log/resnet50_sweep.log
 
-echo "deit_tiny ..."
-time ${script} -n deit_tiny -b 128  -d IMAGENET -w 16 -P FP32 -f fp32   #2&> ./log/deit_ti_sweepny.log
+#echo "deit_tiny ..."
+#time ${script} -n deit_tiny -b 128  -d IMAGENET -w 16 -P FP32 -f fp32   #2&> ./log/deit_ti_sweepny.log
 #
 #echo "deit_base ..."
 #time ${script} -n deit_base -b 32   -d IMAGENET -w 16 -P FP32 -f fp32   #2&> ./log/deit_ba_sweepse.log
