@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 import timm
+import numpy as np
 from num_sys_class import *
 
 
@@ -229,6 +230,15 @@ def str2bool(v):
 #     elif name == "fixedpt":
 #         return num_fixed_pt
 
+# returns the number of classes for common datasets
+def getNumClasses(dataset):
+    if(dataset == 'CIFAR10'):
+        return 10
+    elif(dataset == 'CIFAR100'):
+        return 100
+    elif(dataset == 'IMAGENET'):
+        return 1000
+
 
 def getNetwork(networkName, DATASET):
     ####### IMAGENET #######
@@ -270,6 +280,17 @@ def getNetwork(networkName, DATASET):
         else:
             sys.exit("Network does not exist")
 
+    elif DATASET == 'CIFAR10' or DATASET == 'CIFAR100':
+        if networkName == "alexnet":
+            MODEL = torch.hub.load('pytorch/vision:v0.6.0', networkName, pretrained=True)
+            MODEL.classifier[1] = torch.nn.Linear(9216,4096)
+            MODEL.classifier[4] = torch.nn.Linear(4096,1024)
+            MODEL.classifier[6] = torch.nn.Linear(1024,getNumClasses(DATASET))
+
+        # Error
+        else:
+            sys.exit("Network does not exist")
+
     # model upgrades
     if getPrecision() == 'FP16':
         MODEL = MODEL.half()
@@ -286,8 +307,12 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
                     transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
                 ]
             )
-        testset = IdCifar10(root='./data', train=training,
-                download=True, transform=transform)
+
+        if include_id:
+            testset = IdCifar10(root='./data', train=training, download=True, transform=transform)
+        else:
+            testset = datasets.CIFAR10(root='./data', train=training, download=True, transform=transform)
+
         test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
                 shuffle=shuffleIn, num_workers=workers, pin_memory=True)
         dataiter = iter(test_loader)
@@ -299,8 +324,12 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
                     transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
                  ]
                 )
-        testset = IdCifar100(root='./data', train=training,
-                download=True, transform=transform)
+
+        if include_id:
+            testset = IdCifar100(root='./data', train=training, download=True, transform=transform)
+        else:
+            testset = datasets.CIFAR100(root='./data', train=training, download=True, transform=transform)
+
         test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
                 shuffle=shuffleIn, num_workers=workers, pin_memory=True)
         dataiter = iter(test_loader)
@@ -388,6 +417,72 @@ def load_custom_dataset(NETWORK, DATASET, BATCH_SIZE, good_images, total_data,
             dataiter = iter(val_loader)
 
     return dataiter
+
+class IdCifar10(datasets.CIFAR10):
+    def __init__(self, root, train=False,
+            transform=None, target_transform=None,
+            download=False):
+
+        super(datasets.CIFAR10, self).__init__(root)
+        self.transform = transform
+        self.target_transform = target_transform
+        self.train = train  # training set or test set
+        if download:
+            self.download()
+        if not self._check_integrity():
+            raise RuntimeError('Dataset not found or corrupted.' +
+                    ' You can use download=True to download it')
+        if self.train:
+            downloaded_list = self.train_list
+        else:
+            downloaded_list = self.test_list
+        self.data = []
+        self.targets = []
+        self.img_names = []
+        # now load the picked numpy arrays
+        for file_name, checksum in downloaded_list:
+            file_path = os.path.join(self.root, self.base_folder, file_name)
+            with open(file_path, 'rb') as f:
+                if sys.version_info[0] == 2:
+                    entry = cPickle.load(f)
+                else:
+                    entry = cPickle.load(f, encoding='latin1')
+                self.data.append(entry['data'])
+                if 'labels' in entry:
+                    self.targets.extend(entry['labels'])
+                else:
+                    self.targets.extend(entry['fine_labels'])
+                self.img_names.extend(entry['filenames'])
+        self.data = np.vstack(self.data).reshape(-1, 3, 32, 32)
+        self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
+
+        self._load_meta()
+
+    def __getitem__(self, index):
+        img, target, path = self.data[index], self.targets[index], self.img_names[index]
+        #img = Image.fromarray(img)
+        if self.transform is not None:
+            img = self.transform(img)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+        return img, target, path, index
+
+class IdCifar100(IdCifar10):
+    base_folder = 'cifar-100-python'
+    url = "https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz"
+    filename = "cifar-100-python.tar.gz"
+    tgz_md5 = 'eb9058c3a382ffc7106e4002c42a8d85'
+    train_list = [
+            ['train', '16019d7e3df5f24257cddd939b257f8d'],
+    ]
+    test_list = [
+            ['test', 'f0ef6b0ae62326f3e7ffdfab6717acfc'],
+    ]
+    meta = {
+            'filename': 'meta',
+            'key': 'fine_label_names',
+            'md5': '7973b15100ade9c7d40fb424638fde48',
+    }
 
 
 class IdImageFolder(datasets.ImageFolder):

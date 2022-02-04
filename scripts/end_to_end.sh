@@ -1,8 +1,12 @@
 #!/bin/bash
-set -x
+#set -x
 
 NETWORK=${1}
 BATCH=${2} #128
+FORMAT=${3}  #"fp_n"    # simulated format
+BITWIDTH=${4}   #32
+RADIX=${5}      #23
+INJECTIONS_LOC=${6}  # {0, no injection}. {1: value} or {2, META}
 
 DATASET="IMAGENET"
 OUTPUT_PATH="../output/"
@@ -16,17 +20,14 @@ SCRIPT5="../src/postprocess.py"
 VERBOSE=""
 DEBUG=""
 PRECISION="FP32" # compute fabric
-FORMAT="fp_n"    # simulated format
-BITWIDTH=32
-RADIX=23
 BIAS="" # leave empty, or include the flag with the number: "-a -8" | ""
 QUANT="" # -q leave empty if you do not want quantization
 #BIT_FLIP="-e" # -e leave empty if you do not want bit flip model. NOTE: -q MUST BE ENABLED TOO WITH THIS
 TRAINSET="" # -r. leave empty if using testset
 WORKERS=16
 
-INJECTIONS=${BATCH}
-INJECTIONS_LOC=1  # {0, no injection}. {1: value} or {2, META}
+INJECTIONS=1024 #${BATCH}
+#INJECTIONS_LOC=1  # {0, no injection}. {1: value} or {2, META}
                   #OLD {2, INT value}, or {3, INT scaling}, or {4, block meta}, or {5, adaptive meta}
 
 
@@ -90,13 +91,13 @@ fi
 
 # injections
 echo "Error Injection Campaign ... "
-read -p "    About to launch an error injection campaign. Are you sure? " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
+#read -p "    About to launch an error injection campaign. Are you sure? " -n 1 -r
+#echo
+#if [[ $REPLY =~ ^[Yy]$ ]]
+#then
 python3 ${SCRIPT4} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
 #python3 ${SCRIPT4} -b 1 -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
-fi
+#fi
 
 # postprocessing
 echo -n "Postprocessing ... "

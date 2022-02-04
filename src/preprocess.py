@@ -63,6 +63,8 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
     del activations
 
     actual_max = torch.max(torch.abs(layer_min), torch.abs(layer_max))
+
+    print("========", layer_min, layer_max, actual_max)
     return layer_min, layer_max, actual_max
 
 if __name__ == '__main__':

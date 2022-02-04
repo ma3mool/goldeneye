@@ -492,7 +492,7 @@ class adaptive_float(_ieee754):
         bias_temp = torch.frexp(float_arr.max())[1] - 1
         bias_in = (2 ** (n_exp - 1) - 1) - bias_temp
 
-        print("Before: ", bias_in)
+        # print("Before: ", bias_in)
         # ERROR INJECTION INTO META =============
         # get bit array of shared exp
         exp_str = self.int_to_bitstream(bias_in)
@@ -503,7 +503,7 @@ class adaptive_float(_ieee754):
 
         # get numerical value
         bias = self.bitstream_to_int(bit_arr)
-        print("After: ",bias)
+        # print("After: ",bias)
         # ERROR INJECTION INTO META =============
 
         # 2. limits the range of output float point
