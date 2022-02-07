@@ -119,9 +119,20 @@ if __name__ == '__main__':
     assert(getInjections() == -1)
     assert(getInjectionsLocation() == 0)
 
+    # init PyTorchFI
+    baseC = 3
+    if "IMAGENET" in getDataset():
+        baseH = 224
+        baseW = 224
+    elif "CIFAR" in getDataset():
+        baseH = 32
+        baseW = 32
+
+
     goldeneye_model = goldeneye(
         model,
         getBatchsize(),
+        input_shape=[baseC, baseH, baseW],
         layer_types=[nn.Conv2d, nn.Linear],
         use_cuda=getCUDA_en(),
 

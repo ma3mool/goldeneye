@@ -9,8 +9,16 @@ def save_activations(module, input, output):
 
 def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cuda_en=True, debug=False, verbose=False):
     global activations
-    layer_max = torch.Tensor([]).cuda().half()  # ADDED
-    layer_min = torch.Tensor([]).cuda().half()  # ADDED
+    layer_max = torch.Tensor([])
+    layer_min = torch.Tensor([])
+
+    if cuda_en:
+        layer_max = layer_max.cuda()
+        layer_min = layer_min.cuda()
+    if precision == "FP16":
+        layer_max = layer_max.half()
+        layer_min = layer_min.half()
+
 
     # register forward hook to the model
     handles = []
@@ -29,7 +37,8 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
         if cuda_en:
             images = images.cuda()
             labels = labels.cuda()
-        if precision == "FP16": images = images.half()
+        if precision == "FP16":
+            images = images.half()
 
         activations = []  # reset before every inference
         model(images)  # run an inference
@@ -64,7 +73,6 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
 
     actual_max = torch.max(torch.abs(layer_min), torch.abs(layer_max))
 
-    print("========", layer_min, layer_max, actual_max)
     return layer_min, layer_max, actual_max
 
 if __name__ == '__main__':
@@ -88,7 +96,10 @@ if __name__ == '__main__':
         model,
         dataiter,
         getBatchsize(),
+        precision=getPrecision(),
         cuda_en=getCUDA_en(),
+        debug=getDebug(),
+        verbose=getVerbose(),
     )
     ranges = actual_max.cpu().numpy().tolist()
 

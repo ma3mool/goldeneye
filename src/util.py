@@ -10,7 +10,7 @@ import torchvision.models as models
 import timm
 import numpy as np
 from num_sys_class import *
-
+from othermodels import resnet, vgg, cifar10_nn
 
 '''
 Environment Variables
@@ -242,8 +242,8 @@ def getNumClasses(dataset):
 
 def getNetwork(networkName, DATASET):
     ####### IMAGENET #######
+    FB_repo = 'facebookresearch/deit:main'
     if DATASET == 'IMAGENET':
-        FB_repo = 'facebookresearch/deit:main'
         # Convolution Neural Networks
         if networkName == "alexnet": MODEL = models.alexnet(pretrained=True, progress=True)
         elif networkName == "vgg11": MODEL = models.vgg11(pretrained=True, progress=True)
@@ -281,21 +281,26 @@ def getNetwork(networkName, DATASET):
             sys.exit("Network does not exist")
 
     elif DATASET == 'CIFAR10' or DATASET == 'CIFAR100':
-        if networkName == "alexnet":
-            MODEL = torch.hub.load('pytorch/vision:v0.6.0', networkName, pretrained=True)
-            MODEL.classifier[1] = torch.nn.Linear(9216,4096)
-            MODEL.classifier[4] = torch.nn.Linear(4096,1024)
-            MODEL.classifier[6] = torch.nn.Linear(1024,getNumClasses(DATASET))
+        if networkName == "resnet18":
+            MODEL = resnet.resnet18(pretrained=True)
+        elif networkName == "vgg19_bn":
+            MODEL = vgg.vgg19_bn(pretrained=True)
+        elif networkName == "cifar10_nn_baseline":
+            MODEL = cifar10_nn.baseline(pretrained=True, output_size=getNumClasses(DATASET))
+        elif networkName == "cifar10_nn_v1":
+            MODEL = cifar10_nn.v1(pretrained=True, output_size=getNumClasses(DATASET))
+        elif networkName == "cifar10_nn_v2":
+            MODEL = cifar10_nn.v2(pretrained=True, output_size=getNumClasses(DATASET))
 
         # Error
         else:
             sys.exit("Network does not exist")
 
     # model upgrades
-    if getPrecision() == 'FP16':
-        MODEL = MODEL.half()
     if getCUDA_en():
         MODEL = MODEL.cuda()
+    if getPrecision() == 'FP16':
+        MODEL = MODEL.half()
 
     return MODEL
 

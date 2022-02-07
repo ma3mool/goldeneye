@@ -2,13 +2,14 @@
 #set -x
 
 NETWORK=${1}
-BATCH=${2} #128
-FORMAT=${3}  #"fp_n"    # simulated format
-BITWIDTH=${4}   #32
-RADIX=${5}      #23
-INJECTIONS_LOC=${6}  # {0, no injection}. {1: value} or {2, META}
+DATASET=${2} #"IMAGENET"
+BATCH=${3} #128
+FORMAT=${4}  #"fp_n"    # simulated format
+BITWIDTH=${5}   #32
+RADIX=${6}      #23
+INJECTIONS_LOC=${7}  # {0, no injection}. {1: value} or {2, META}
 
-DATASET="IMAGENET"
+
 OUTPUT_PATH="../output/"
 SRC_PATH="../src/"
 LOG_PATH="./log/"
@@ -26,7 +27,7 @@ QUANT="" # -q leave empty if you do not want quantization
 TRAINSET="" # -r. leave empty if using testset
 WORKERS=16
 
-INJECTIONS=1024 #${BATCH}
+INJECTIONS=102400 #${BATCH}
 #INJECTIONS_LOC=1  # {0, no injection}. {1: value} or {2, META}
                   #OLD {2, INT value}, or {3, INT scaling}, or {4, block meta}, or {5, adaptive meta}
 

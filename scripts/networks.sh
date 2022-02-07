@@ -3,23 +3,25 @@
 
 script="./end_to_end.sh"
 network=${1}
-batchsize=${2}
+dataset=${2}
+batchsize=${3}
 
+time ${script} ${network} ${dataset} ${batchsize} fp32 32 23  1               #2&> ./log/alexnet.log
 
-#time ${script} ${network} ${batchsize} block_fp 12 7  1               #2&> ./log/alexnet.log
-#time ${script} ${network} ${batchsize} adaptive_fp 8 3 1               #2&> ./log/alexnet.log
+#time ${script} ${dataset} ${network} ${batchsize} block_fp 12 7  1               #2&> ./log/alexnet.log
+#time ${script} ${dataset} ${network} ${batchsize} adaptive_fp 8 3 1               #2&> ./log/alexnet.log
 
-#time ${script} ${network} ${batchsize} block_fp 12 7  2               #2&> ./log/alexnet.log
-#time ${script} ${network} ${batchsize} adaptive_fp 8 3 2               #2&> ./log/alexnet.log
+#time ${script} ${dataset} ${network} ${batchsize} block_fp 12 7  2               #2&> ./log/alexnet.log
+#time ${script} ${dataset} ${network} ${batchsize} adaptive_fp 8 3 2               #2&> ./log/alexnet.log
 ##
-#time ${script} ${network} ${batchsize} fp32 32 23  1               #2&> ./log/alexnet.log
+#time ${script} ${dataset} ${network} ${batchsize} fp32 32 23  1               #2&> ./log/alexnet.log
 #
-time ${script} ${network} ${batchsize} block_fp 16 8  1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} block_fp 16 10 1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} block_fp 16 11 1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} block_fp 12 6  1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} block_fp 10 5  1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} block_fp 11 5  1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} block_fp 16 8  1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} block_fp 16 10 1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} block_fp 16 11 1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} block_fp 12 6  1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} block_fp 10 5  1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} block_fp 11 5  1               #2&> ./log/alexnet.log
 #time ${script} ${network} ${batchsize} block_fp 16 8  2               #2&> ./log/alexnet.log
 #time ${script} ${network} ${batchsize} block_fp 16 10 2               #2&> ./log/alexnet.log
 #time ${script} ${network} ${batchsize} block_fp 16 11 2               #2&> ./log/alexnet.log
@@ -28,13 +30,13 @@ time ${script} ${network} ${batchsize} block_fp 11 5  1               #2&> ./log
 #time ${script} ${network} ${batchsize} block_fp 11 5  2               #2&> ./log/alexnet.log
 #
 #
-time ${script} ${network} ${batchsize} adaptive_fp 16 8  1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} adaptive_fp 16 10 1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} adaptive_fp 16 11 1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} adaptive_fp 8 2   1               #2&> ./log/alexnet.log  #START HERE FOR DEIT
-time ${script} ${network} ${batchsize} adaptive_fp 12 6  1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} adaptive_fp 10 5  1               #2&> ./log/alexnet.log
-time ${script} ${network} ${batchsize} adaptive_fp 9 4   1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} adaptive_fp 16 8  1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} adaptive_fp 16 10 1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} adaptive_fp 16 11 1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} adaptive_fp 8 2   1               #2&> ./log/alexnet.log  #START HERE FOR DEIT
+#time ${script} ${network} ${batchsize} adaptive_fp 12 6  1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} adaptive_fp 10 5  1               #2&> ./log/alexnet.log
+#time ${script} ${network} ${batchsize} adaptive_fp 9 4   1               #2&> ./log/alexnet.log
 #time ${script} ${network} ${batchsize} adaptive_fp 16 8  2               #2&> ./log/alexnet.log
 #time ${script} ${network} ${batchsize} adaptive_fp 16 10 2               #2&> ./log/alexnet.log
 #time ${script} ${network} ${batchsize} adaptive_fp 16 11 2               #2&> ./log/alexnet.log

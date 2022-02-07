@@ -129,6 +129,7 @@ if __name__ == "__main__":
     goldeneye_model = goldeneye(
         model,
         getBatchsize(),
+        input_shape=[baseC, baseH, baseW],
         layer_types=[nn.Conv2d, nn.Linear],
         use_cuda=getCUDA_en(),
 
