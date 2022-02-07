@@ -2,21 +2,12 @@ from util import *
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
-from goldeneye import goldeneye
+from goldeneye import *
 
-sys.path.append("./pytorchfi")
-from pytorchfi import core
-# from pytorchfi.error_models import *
-from error_models_num_sys import (
-    num_fp32,
-    num_fp16,
-    num_bfloat16,
-    num_fixed_pt,
-)
 
 # goes through dataset and finds correctly classified images, and corresponding data
 @torch.no_grad()
-def gather_golden(model, data_iter, cuda_en=True, precision='FP16', verbose=False, debug=False):
+def gather_golden(goldeneye, data_iter, cuda_en=True, precision='FP32', verbose=False, debug=False):
     golden_data = {}
     processed_elements = 0
     good_imgs = 0
@@ -25,6 +16,7 @@ def gather_golden(model, data_iter, cuda_en=True, precision='FP16', verbose=Fals
     criterion = nn.CrossEntropyLoss(reduction='none')
     counter = 0
     for input_data in tqdm(data_iter):
+        inf_model = goldeneye.declare_neuron_fi(function=goldeneye.apply_goldeneye_transformation)
         # if debug:
         #     if processed_elements >= max_elements:
         #         break
@@ -36,15 +28,16 @@ def gather_golden(model, data_iter, cuda_en=True, precision='FP16', verbose=Fals
             images = images.cuda()
             labels = labels.cuda()
 
-        output = model(images) # run an inference
-        output_loss = criterion(output, labels)
+        with torch.no_grad():
+            output = inf_model(images) # run an inference
+            output_loss = criterion(output, labels)
 
-        # get argmax and conf
-        output_soft = F.softmax(output,dim=1)
-        conf, argMax = output_soft.max(1)
+            # get argmax and conf
+            output_soft = F.softmax(output,dim=1)
+            conf, argMax = output_soft.max(1)
 
-        # get top2diff
-        top2 = torch.topk(output_soft, k=2, dim=1)[0]
+            # get top2diff
+            top2 = torch.topk(output_soft, k=2, dim=1)[0]
 
         for img in range(len(images)):
             counter += 1
@@ -60,7 +53,8 @@ def gather_golden(model, data_iter, cuda_en=True, precision='FP16', verbose=Fals
             inf_conf = conf[img].item() * 100
             inf_top2diff = diff_top2(top2[img])
             inf_loss = output_loss[img].item()
-            img_tuple = (correct_inf, inf_label, inf_conf, inf_top2diff, inf_loss)
+            # img_tuple = (correct_inf, inf_label, inf_conf, inf_top2diff, inf_loss)
+            img_tuple = (labels[img].item(), inf_label, inf_conf, inf_top2diff, inf_loss)
             img_id = index[img].item()
 
             assert(img_id not in golden_data) # we shouldn't have duplicates in the golden data
@@ -91,8 +85,21 @@ if __name__ == '__main__':
     if getDebug(): printArgs()
 
     # common variables
-    name = getDNN() + "_" + getDataset() + "_" + getPrecision()
-    range_path = getOutputDir() + "/networkRanges/" + name + "/"
+    range_name = getDNN() + "_" + getDataset()
+    range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
+
+    if getFormat() == "INT":
+        format = "INT"
+        quant_en = True
+        bitwidth_fp = 32
+    else:
+        format = getFormat()
+        bitwidth_fp = getBitwidth()
+        quant_en = False
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + format + "_bw" + str(bitwidth_fp) \
+           + "_r" + str(getRadix()) + "_bias" + str(getBias())
+    # if getQuantize_en(): name += "_" + "quant"
     out_path = getOutputDir() + "/networkProfiles/" + name + "/"
     subset_path = getOutputDir() + "/data_subset/" + name + "/"
 
@@ -105,19 +112,49 @@ if __name__ == '__main__':
     model.eval()
     torch.no_grad()
 
-    inj_model = goldeneye(
+    exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
+    mantissa_bits = getRadix() #getBitwidth() - exp_bits - 1  # also FRAC for fixed point
+
+    # no injections during profiling
+    assert(getInjections() == -1)
+    assert(getInjectionsLocation() == 0)
+
+    # init PyTorchFI
+    baseC = 3
+    if "IMAGENET" in getDataset():
+        baseH = 224
+        baseW = 224
+    elif "CIFAR" in getDataset():
+        baseH = 32
+        baseW = 32
+
+
+    goldeneye_model = goldeneye(
         model,
         getBatchsize(),
+        input_shape=[baseC, baseH, baseW],
         layer_types=[nn.Conv2d, nn.Linear],
-        use_cuda=True,
-        num_sys=num_bfloat16,
-        quant=False,
+        use_cuda=getCUDA_en(),
+
+        # number format
+        signed=True,
+        num_sys=getNumSysName(getFormat(),
+                              bits=bitwidth_fp,
+                              radix_up=exp_bits,
+                              radix_down=mantissa_bits,
+                              bias=getBias()),
+
+        # quantization
+        quant=quant_en,
         layer_max=ranges,
-        inj_order=False,
+        bits=getBitwidth(),
+        qsigned=True,
+
+        inj_order=getInjectionsLocation(),
     )
 
     # Golden data gathering
-    golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(model, dataiter, \
+    golden_data, good_imgs, bad_imgs, total_imgs = gather_golden(goldeneye_model, dataiter, \
             getBatchsize(), precision=getPrecision(), verbose=getVerbose(), debug=getDebug())
 
     # Golden data gathering
@@ -126,11 +163,27 @@ if __name__ == '__main__':
     df = save_data_df(out_path, output_name, golden_data)
 
     # Print Summary Statistics
+    summaryDetails = ""
+    summaryDetails += "===========================================\n"
+    summaryDetails += "%s\n" % (name)
+    summaryDetails += "Accuracy: \t%0.2f%%\n" % (good_imgs / total_imgs * 100.0)
+    summaryDetails += "Ave Loss: \t%0.2f\n" % (df["inf_loss"].mean())
+    summaryDetails += "Ave Conf: \t%0.2f%%\n" % (df["inf_conf"].mean())
+    summaryDetails += "Ave Top2Diff: \t%0.2f%%\n" % (df["inf_top2diff"].mean())
+    summaryDetails += "===========================================\n"
+
+    # save stats
+    stats_file = open(out_path + "stats.txt", "w+")
+    n = stats_file.write(summaryDetails)
+    stats_file.close()
+
+
     if getVerbose():
-        print("===========================================")
-        print(name)
-        print("Accuracy: \t%0.2f%%" %(good_imgs / total_imgs * 100.0))
-        print("Ave Loss: \t%0.2f" %(df["inf_loss"].mean()))
-        print("Ave Conf: \t%0.2f%%" %(df["inf_conf"].mean()))
-        print("Ave Top2Diff: \t%0.2f%%" %(df["inf_top2diff"].mean()))
-        print("===========================================")
+        print(summaryDetails)
+        # print("===========================================")
+        # print(name)
+        # print("Accuracy: \t%0.2f%%" %(good_imgs / total_imgs * 100.0))
+        # print("Ave Loss: \t%0.2f" %(df["inf_loss"].mean()))
+        # print("Ave Conf: \t%0.2f%%" %(df["inf_conf"].mean()))
+        # print("Ave Top2Diff: \t%0.2f%%" %(df["inf_top2diff"].mean()))
+        # print("===========================================")

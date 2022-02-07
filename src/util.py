@@ -8,7 +8,9 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 import timm
-
+import numpy as np
+from num_sys_class import *
+from othermodels import resnet, vgg, cifar10_nn
 
 '''
 Environment Variables
@@ -21,13 +23,18 @@ Helper functions to parse input
 batchsize_in = -1
 dnn_in = ""
 dataset_in = ""
+format_in = ""
 precision_in = ""
 output_in = ""
 cuda_in = True
 injections_in = -1
+injectionsLoc_in = 0
+radix_in = -1
+bitwidth_in = 32
+bias_in = None
 workers_in = -1
 training_in = False
-# quantize_in = False
+quantize_in = False
 # singlebitflip_in = False
 verbose_in = False
 debug_in = False
@@ -53,6 +60,11 @@ def check_args(args=None):
                         required='True',
                         default='IMAGENET')
 
+    parser.add_argument('-f', '--format',
+                        help='Data format: fp32, fp16, bfloat16, fixedpt',
+                        required='True',
+                        default='fp32')
+
     parser.add_argument('-P', '--precision',
                         help='FP32 or FP16',
                         default='FP16')
@@ -72,6 +84,26 @@ def check_args(args=None):
                         help='The number of injections to perform',
                         type=int,
                         default=-1)
+
+    parser.add_argument('-I', '--injectionLocation',
+                        help='Injection Location (0-5)',
+                        type=int,
+                        default=-0)
+
+    parser.add_argument('-R', '--radix',
+                        help='Radix point for number format, from LSB',
+                        type=int,
+                        default=-1)
+
+    parser.add_argument('-B', '--bitwidth',
+                        help='Bitwidth of number format',
+                        type=int,
+                        default=32)
+
+    parser.add_argument('-a', '--bias',
+                        help='Bias value for AdaptivFloat number format',
+                        type=int,
+                        default=None)
 
     parser.add_argument('-r', '--training',
                         help='When enabled, this is training data. When disabled, this is testing data',
@@ -115,21 +147,27 @@ def check_args(args=None):
 
     results = parser.parse_args(args)
 
-    global batchsize_in, dnn_in, dataset_in, precision_in, output_in, cuda_in, \
-        injections_in, training_in, workers_in, \
+    global batchsize_in, dnn_in, dataset_in, format_in, precision_in, output_in, cuda_in, \
+        bitwidth_in, radix_in, bias_in, \
+        injections_in, injectionsLoc_in, training_in, workers_in, quantize_in, \
         verbose_in, debug_in
-    # global quantize_in, singlebitflip_in
+    # global singlebitflip_in
 
     batchsize_in = results.batchsize
     dnn_in = results.dnn
     dataset_in = results.dataset
+    format_in = results.format
     precision_in = results.precision
     output_in = results.output
     cuda_in = results.cuda
     injections_in = results.injections
+    injectionsLoc_in = results.injectionLocation
+    radix_in = results.radix
+    bitwidth_in = results.bitwidth
+    bias_in = results.bias
     training_in = results.training
     workers_in = results.workers
-    # quantize_in = results.quantize
+    quantize_in = results.quantize
     # singlebitflip_in = results.errormodel
     verbose_in = results.verbose
     debug_in = results.debug
@@ -142,13 +180,21 @@ def check_args(args=None):
 def getBatchsize(): return batchsize_in
 def getDNN(): return dnn_in
 def getDataset(): return dataset_in
+def getFormat(): return format_in
 def getPrecision(): return precision_in
 def getOutputDir(): return output_in
 def getCUDA_en(): return cuda_in
-def getInjections(): return injections_in
+def getInjections():
+    if injections_in != -1 and injectionsLoc_in == 0:
+        print("Warning: No injection location. Please include \"-I\" flag with value.")
+    return injections_in
+def getInjectionsLocation(): return injectionsLoc_in
+def getRadix(): return radix_in
+def getBitwidth(): return bitwidth_in
+def getBias(): return bias_in
 def getTraining_en(): return training_in
 def getWorkers(): return workers_in
-# def getQuantize_en(): return quantize_in
+def getQuantize_en(): return quantize_in
 # def getQuantizeBits(): return QUANTIZE_BITS
 # def getSingleBitFlip_en(): return singlebitflip_in
 def getVerbose(): return verbose_in
@@ -156,12 +202,14 @@ def getDebug(): return debug_in
 
 
 def printArgs():
-    print('BATCH SIZE: \t%d\nDNN: \t\t%s\nDATASET: \t%s\n' \
+    print('BATCH SIZE: \t%d\nDNN: \t\t%s\nDATASET: \t%sFORMAT: \t%s\n' \
           'PRECISION: \t%s\nOUTPUT: \t%s\nUSE_CUDA: \t%s\n' \
-          'INJECTIONS: \t%s\nTRAINING DATA: \t%s\nWORKERS: \t%d\n' \
+          'BIT-WIDTH: \t%s\nRADIX: \t%s\nBIAS: \t%s\n' \
+          'INJECTIONS: \t%s\nINJECTIONS LOCATION: \t%s\nTRAINING DATA: \t%s\nWORKERS: \t%d\n' \
           'VERBOSE: \t%s\nDEBUG: \t\t%s\n' \
-          % (batchsize_in, dnn_in, dataset_in, precision_in, output_in, cuda_in, \
-             injections_in, training_in, workers_in, verbose_in, debug_in))
+          % (batchsize_in, dnn_in, dataset_in, format_in, precision_in, output_in, cuda_in, \
+             bitwidth_in, radix_in, bias_in, \
+             injections_in, injectionsLoc_in, training_in, workers_in, verbose_in, debug_in))
 
 
 def str2bool(v):
@@ -172,10 +220,30 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+# def getNumSysName(name):
+#     if name == "fp32":
+#         return num_fp32
+#     elif name == "fp16":
+#         return fp16
+#     elif name == "bfloat16":
+#         return bfloat16
+#     elif name == "fixedpt":
+#         return num_fixed_pt
+
+# returns the number of classes for common datasets
+def getNumClasses(dataset):
+    if(dataset == 'CIFAR10'):
+        return 10
+    elif(dataset == 'CIFAR100'):
+        return 100
+    elif(dataset == 'IMAGENET'):
+        return 1000
+
+
 def getNetwork(networkName, DATASET):
     ####### IMAGENET #######
+    FB_repo = 'facebookresearch/deit:main'
     if DATASET == 'IMAGENET':
-        FB_repo = 'facebookresearch/deit:main'
         # Convolution Neural Networks
         if networkName == "alexnet": MODEL = models.alexnet(pretrained=True, progress=True)
         elif networkName == "vgg11": MODEL = models.vgg11(pretrained=True, progress=True)
@@ -212,11 +280,27 @@ def getNetwork(networkName, DATASET):
         else:
             sys.exit("Network does not exist")
 
+    elif DATASET == 'CIFAR10' or DATASET == 'CIFAR100':
+        if networkName == "resnet18":
+            MODEL = resnet.resnet18(pretrained=True)
+        elif networkName == "vgg19_bn":
+            MODEL = vgg.vgg19_bn(pretrained=True)
+        elif networkName == "cifar10_nn_baseline":
+            MODEL = cifar10_nn.baseline(pretrained=True, output_size=getNumClasses(DATASET))
+        elif networkName == "cifar10_nn_v1":
+            MODEL = cifar10_nn.v1(pretrained=True, output_size=getNumClasses(DATASET))
+        elif networkName == "cifar10_nn_v2":
+            MODEL = cifar10_nn.v2(pretrained=True, output_size=getNumClasses(DATASET))
+
+        # Error
+        else:
+            sys.exit("Network does not exist")
+
     # model upgrades
-    if getPrecision() == 'FP16':
-        MODEL = MODEL.half()
     if getCUDA_en():
         MODEL = MODEL.cuda()
+    if getPrecision() == 'FP16':
+        MODEL = MODEL.half()
 
     return MODEL
 
@@ -228,8 +312,12 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
                     transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
                 ]
             )
-        testset = IdCifar10(root='./data', train=training,
-                download=True, transform=transform)
+
+        if include_id:
+            testset = IdCifar10(root='./data', train=training, download=True, transform=transform)
+        else:
+            testset = datasets.CIFAR10(root='./data', train=training, download=True, transform=transform)
+
         test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
                 shuffle=shuffleIn, num_workers=workers, pin_memory=True)
         dataiter = iter(test_loader)
@@ -241,8 +329,12 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
                     transforms.Normalize((0.4914,0.4822,0.4465), (0.2023,0.1994,0.2010))
                  ]
                 )
-        testset = IdCifar100(root='./data', train=training,
-                download=True, transform=transform)
+
+        if include_id:
+            testset = IdCifar100(root='./data', train=training, download=True, transform=transform)
+        else:
+            testset = datasets.CIFAR100(root='./data', train=training, download=True, transform=transform)
+
         test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
                 shuffle=shuffleIn, num_workers=workers, pin_memory=True)
         dataiter = iter(test_loader)
@@ -330,6 +422,72 @@ def load_custom_dataset(NETWORK, DATASET, BATCH_SIZE, good_images, total_data,
             dataiter = iter(val_loader)
 
     return dataiter
+
+class IdCifar10(datasets.CIFAR10):
+    def __init__(self, root, train=False,
+            transform=None, target_transform=None,
+            download=False):
+
+        super(datasets.CIFAR10, self).__init__(root)
+        self.transform = transform
+        self.target_transform = target_transform
+        self.train = train  # training set or test set
+        if download:
+            self.download()
+        if not self._check_integrity():
+            raise RuntimeError('Dataset not found or corrupted.' +
+                    ' You can use download=True to download it')
+        if self.train:
+            downloaded_list = self.train_list
+        else:
+            downloaded_list = self.test_list
+        self.data = []
+        self.targets = []
+        self.img_names = []
+        # now load the picked numpy arrays
+        for file_name, checksum in downloaded_list:
+            file_path = os.path.join(self.root, self.base_folder, file_name)
+            with open(file_path, 'rb') as f:
+                if sys.version_info[0] == 2:
+                    entry = cPickle.load(f)
+                else:
+                    entry = cPickle.load(f, encoding='latin1')
+                self.data.append(entry['data'])
+                if 'labels' in entry:
+                    self.targets.extend(entry['labels'])
+                else:
+                    self.targets.extend(entry['fine_labels'])
+                self.img_names.extend(entry['filenames'])
+        self.data = np.vstack(self.data).reshape(-1, 3, 32, 32)
+        self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
+
+        self._load_meta()
+
+    def __getitem__(self, index):
+        img, target, path = self.data[index], self.targets[index], self.img_names[index]
+        #img = Image.fromarray(img)
+        if self.transform is not None:
+            img = self.transform(img)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+        return img, target, path, index
+
+class IdCifar100(IdCifar10):
+    base_folder = 'cifar-100-python'
+    url = "https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz"
+    filename = "cifar-100-python.tar.gz"
+    tgz_md5 = 'eb9058c3a382ffc7106e4002c42a8d85'
+    train_list = [
+            ['train', '16019d7e3df5f24257cddd939b257f8d'],
+    ]
+    test_list = [
+            ['test', 'f0ef6b0ae62326f3e7ffdfab6717acfc'],
+    ]
+    meta = {
+            'filename': 'meta',
+            'key': 'fine_label_names',
+            'md5': '7973b15100ade9c7d40fb424638fde48',
+    }
 
 
 class IdImageFolder(datasets.ImageFolder):
@@ -441,3 +599,32 @@ def load_file(file_name, compress = True):
     fileIn= cPickle.load(f)
     f.close()
     return fileIn
+
+#################################################################
+################### HELPER METHODS FOR NUMSYS ###################
+#################################################################
+def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
+    # common number systems in PyTorch
+    if name == "fp32":
+        return num_fp32(), name
+    if name == "INT":
+        assert(getQuantize_en())
+        return num_fp32(), name
+    elif name == "fp16":
+        return num_fp16(), name
+    elif name == "bfloat16":
+        return num_bfloat16(), name
+
+    # generic number systems in PyTorch
+    elif name == "fp_n":
+        return num_float_n(exp_len=radix_up, mant_len=radix_down), name
+    elif name == "fxp_n":
+        return num_fixed_pt(int_len=radix_up, frac_len=radix_down), name
+    elif name == "block_fp":
+        return block_fp(bit_width=bits, exp_len=radix_up, mant_len=radix_down), name
+    elif name == "adaptive_fp":
+        return adaptive_float(bit_width=bits, exp_len=radix_up, mant_len=radix_down, exp_bias=bias), name
+
+    else:
+        sys.exit("Number format not supported")
+

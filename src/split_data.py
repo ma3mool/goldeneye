@@ -18,7 +18,22 @@ if __name__ == '__main__':
     if getDebug(): printArgs()
 
     # Common variables
-    name = getDNN() + "_" + getDataset() + "_" + getPrecision()
+    range_name = getDNN() + "_" + getDataset()
+    range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
+
+    if getFormat() == "INT":
+        format = "INT"
+        quant_en = True
+        bitwidth_fp = 32
+    else:
+        format = getFormat()
+        bitwidth_fp = getBitwidth()
+        quant_en = False
+
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + format + "_bw" + str(bitwidth_fp) \
+           + "_r" + str(getRadix()) + "_bias" + str(getBias())
+
     netProfilePath = getOutputDir() + "/networkProfiles/" + name + "/"
     outPath = getOutputDir() + "/data_subset/" + name + "/"
     golden_data = load_file(netProfilePath + "golden_data")
@@ -36,14 +51,15 @@ if __name__ == '__main__':
     random.seed()  #back to randomness
 
     # generate a list from the correct images in AS and DS
+    # Also drop images where top2diff is 0
     ASgoodImgs = []
     DSgoodImgs = []
     for i in analysis_set:
-        if golden_data[i][0]:
+        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0 :
             ASgoodImgs.append(i)
 
     for i in deployment_set:
-        if golden_data[i][0]:
+        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0 :
             DSgoodImgs.append(i)
 
     save_data(outPath, "rank_set_good", ASgoodImgs)

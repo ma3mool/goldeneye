@@ -86,16 +86,17 @@ class _number_sys:
 
         return self.format_to_real(bit_arr_corrupted)
 
-    def convert_data_format(self, num, bit_ind, flip=False):
+    def convert_numsys_flip(self, num, bit_ind, flip=False):
         bit_arr = self.real_to_format(num)
-
+        print("before internal: ", bit_arr)
         if flip:
             bit_arr = self.bit_flip(bit_arr, bit_ind)
+        print("after internal: ", bit_arr)
 
         return self.format_to_real(bit_arr)
 
     def real_to_format_to_real_tensor(input_tensor):
-        return output.apply_(lambda val: num_fp32().convert_data_format(val))
+        return output.apply_(lambda val: num_fp32().convert_numsys_flip(val))
 
     # HELPER FUNCTIONS
 

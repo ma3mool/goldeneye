@@ -1,37 +1,35 @@
 import time
 import torch.nn as nn
+
+# import pytorchfi.pytorchfi.error_models
 from util import *
 from tqdm import tqdm
 from goldeneye import goldeneye
 
-sys.path.append("./pytorchfi")
-from error_models_num_sys import (
-    num_fp32,
-    num_fp16,
-    num_bfloat16,
-    num_fixed_pt,
-)
+# from num_sys_class import *
+# sys.path.append("./pytorchfi")
 
 
-def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
+def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize, function=-1):
     dim = len(shape)
     batch, layerArr, dim1, dim2, dim3, value = ([] for i in range(6))
 
     for i in range(batchsize):
         batch.append(i)
         layerArr.append(layer)
-        value.append(random_value(-1.0 * maxval, maxval))
+        if function == -1:
+            value.append(random_value(-1.0 * maxval, maxval))
 
-        dim1val = random.randint(0, shape[0]-1)
+        dim1val = random.randint(0, shape[0] - 1)
         dim1.append(dim1val)
         if dim >= 2:
-            dim2val = random.randint(0, shape[1]-1)
+            dim2val = random.randint(0, shape[1] - 1)
             dim2.append(dim2val)
         else:
             dim2.append(None)
 
         if dim >= 3:
-            dim3val = random.randint(0, shape[2]-1)
+            dim3val = random.randint(0, shape[2] - 1)
             dim3.append(dim3val)
         else:
             dim3.append(None)
@@ -42,15 +40,10 @@ def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize):
         dim1=dim1,
         dim2=dim2,
         dim3=dim3,
-        value=value,
+        function=function,
     )
 
 
-def quantize(module, input, output):
-    # NOTE: pytorch recommends not using apply_ in
-    # situations where high performance is needed.
-    # The function apply_ seems to only support cpu tensors (?)
-    return output.apply_(lambda val: num_fp32().quantize(val))
 
 
 if __name__ == "__main__":
@@ -60,19 +53,31 @@ if __name__ == "__main__":
     if getDebug():
         printArgs()
 
-    sys.path.append(getOutputDir() + "../src/pytorchfi") #when calling from ./scripts/
-    from pytorchfi.core import fault_injection
-    from pytorchfi.error_models import *
+    # sys.path.append(getOutputDir() + "../src/pytorchfi")  # when calling from ./scripts/
+    # from pytorchfi.core import fault_injection
+    # from pytorchfi.neuron_error_models import *
 
     inj_per_layer = getInjections()
     assert inj_per_layer != -1, "The number of injections is not valid (-1)"
 
     # common variables
-    name = getDNN() + "_" + getDataset() + "_" + getPrecision()
-    range_path = getOutputDir() + "/networkRanges/" + name + "/"
-<<<<<<< HEAD
+    range_name = getDNN() + "_" + getDataset()
+    range_path = getOutputDir() + "/networkRanges/" + range_name + "/"
+
+    if getFormat() == "INT":
+        format = "INT"
+        quant_en = True
+        bitwidth_fp = 32
+    else:
+        format = getFormat()
+        bitwidth_fp = getBitwidth()
+        quant_en = False
+
+    name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + format + "_bw" + str(bitwidth_fp) \
+           + "_r" + str(getRadix()) + "_bias" + str(getBias())
+
     profile_path = getOutputDir() + "/networkProfiles/" + name + "/"
-    data_susbet_path = getOutputDir() + "/data_subset/" + name + "/"
+    data_subset_path = getOutputDir() + "/data_subset/" + name + "/"
     out_path = getOutputDir() + "/injections/" + name + "/"
     image_set = ""
 
@@ -110,40 +115,50 @@ if __name__ == "__main__":
     model.eval()
     torch.no_grad()
 
-    # TODO
-    # quantization hooks go here
-
-    # # register forward hook to the model
-    # for param in model.modules():
-    #     if isinstance(param, nn.Conv2d) or isinstance(param, nn.Linear):
-    #         param.register_forward_hook(quantize)
-
     # init PyTorchFI
     baseC = 3
     if "IMAGENET" in getDataset():
         baseH = 224
         baseW = 224
     elif "CIFAR" in getDataset():
-        baseH = 224
-        baseW = 224
+        baseH = 32
+        baseW = 32
 
-    pfi_model = fault_injection(
+    exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
+    mantissa_bits = getRadix()  # also FRAC for fixed point
+    goldeneye_model = goldeneye(
         model,
         getBatchsize(),
         input_shape=[baseC, baseH, baseW],
         layer_types=[nn.Conv2d, nn.Linear],
-        use_cuda=True,
+        use_cuda=getCUDA_en(),
+
+        # number format
+        signed=True,
+        num_sys=getNumSysName(getFormat(),
+                              bits=bitwidth_fp,
+                              radix_up=exp_bits,
+                              radix_down=mantissa_bits,
+                              bias=getBias()),
+
+        # quantization
+        quant=quant_en,
+        layer_max=ranges,
+        bits=getBitwidth(),
+        qsigned=True,
+
+        inj_order=getInjectionsLocation(),
     )
 
     if getDebug():
-        print(pfi_model.print_pytorchfi_layer_summary())
+        print(goldeneye_model.print_pytorchfi_layer_summary())
 
-    assert pfi_model.get_total_layers() == total_layers
-    shapes = pfi_model.get_output_size()
+    assert goldeneye_model.get_total_layers() == total_layers
+    shapes = goldeneye_model.get_output_size()
 
     # ERROR INJECTION CAMPAIGN
     start_time = time.time()
-    for currLayer in tqdm(range(pfi_model.get_total_layers()), desc="Layers"):
+    for currLayer in tqdm(range(goldeneye_model.get_total_layers()), desc="Layers"):
         layerInjects = []
 
         maxVal = ranges[currLayer]
@@ -162,27 +177,37 @@ if __name__ == "__main__":
             if getPrecision() == "FP16":
                 images = images.half()
 
-            # injection locations
-            inj_model = goldeneye(
-                model,
-                getBatchsize(),
-                input_shape=[baseC, baseH, baseW],
-                layer_types=[nn.Conv2d, nn.Linear],
-                use_cuda=True,
-                num_sys=num_bfloat16(),
-                quant=True,
-                layer_max=[],
-                inj_order=1,
-            )
 
-            # rand_neurons_batch(
-            #     pfi_model, currLayer, currShape, maxVal, getBatchsize()
-            # )
+            # inj_model = random_neuron_single_bit_inj_batched(pfi_model, ranges)
+            # inj_model_locations = random_neuron_inj_batched(pfi_model,
+            #                                         min_val= abs(ranges[currLayer]) * -1,
+            #                                         max_val=abs(ranges[currLayer]),
+            #                                       )
+
+            # injection locations
+            with torch.no_grad():
+                inf_model = rand_neurons_batch(goldeneye_model,
+                                           currLayer,
+                                           currShape,
+                                           maxVal,
+                                           getBatchsize(),
+                                           function=goldeneye_model.apply_goldeneye_transformation
+                                           )
+
+
+            # injection model
+            # inf_model = goldeneye.declare_neuron_fi(batch=batch_inj,
+            #                                         layer=layer_inj,
+            #                                         dim1=dim1_inj,
+            #                                         dim2=dim2_inj,
+            #                                         dim3=dim3_inj,
+            #                                         function=goldeneye.apply_goldeneye_transformation,
+            #                                         )
 
             # perform inference
-            output_inj = inj_model(images)
-            output_argmax = torch.argmax(output_inj, dim=1)
-            output_inj_loss = criterion(output_inj, labels)
+                output_inj = inf_model(images)
+                output_argmax = torch.argmax(output_inj, dim=1)
+                output_inj_loss = criterion(output_inj, labels)
 
             # save results
             layerInjects.append(
@@ -195,7 +220,7 @@ if __name__ == "__main__":
 
             samples += getBatchsize()
             torch.cuda.empty_cache()
-            print("")
+            # print("")
         pbar.close()
 
         fileName = "layer" + str(currLayer)
