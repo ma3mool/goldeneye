@@ -1,10 +1,21 @@
-from goldeneye.src.num_sys_class import _ieee754, num_fixed_pt, adaptive_float, block_fp
+from goldeneye.src.num_sys_class import *
+from goldeneye.src.num_sys_class import _number_sys, _ieee754
 import torch
 import math
 
 
-# IEEE754
-def test_ieee754():
+# _number_sys
+def test_number_sys():
+    test = _number_sys()
+
+    # bit_flip tests
+    assert(test.bit_flip(['1', '0', '1', '1', '1', '1'], 0)
+           == ['1', '0', '1', '1', '1', '0'])
+    assert(test.bit_flip(['1', '0', '1', '1', '1', '1'], 3)
+           == ['1', '0', '0', '1', '1', '1'])
+    assert(test.bit_flip(['1', '0', '1', '1', '1', '1'], 5)
+           == ['0', '0', '1', '1', '1', '1'])
+
     # bitwidth of 6, 1 sign bit, 1 exponent bit, 4 mantissa bits
     fp6 = _ieee754(
         exp_len=1,
@@ -15,205 +26,294 @@ def test_ieee754():
         min_val=None
     )
 
-    # negative and positive numbers
-    assert(fp6.format_to_real("101111") == -0.9375)
-    assert(fp6.format_to_real("000101") == 0.3125)
+    # single_bit_flip_in_format
+    assert(fp6.single_bit_flip_in_format(-0.9375, 0) == -0.875)
+    assert(fp6.single_bit_flip_in_format(0.3125, 2) == 0.0625)
 
     # denormals
-    assert(fp6.format_to_real("000000") == 0.0)
-    assert(fp6.format_to_real("100000") == 0.0)
-
-    # infinity
-    assert(fp6.format_to_real("010000") == float('inf'))
-    assert(fp6.format_to_real("110000") == float('-inf'))
+    assert(fp6.single_bit_flip_in_format(0, 4) == float('inf'))
 
     # NaN
-    assert(math.isnan(fp6.format_to_real("011001")))
-    assert(math.isnan(fp6.format_to_real("110111")))
+    assert(math.isnan(fp6.single_bit_flip_in_format(0.5625, 4)))
+    assert(math.isnan(fp6.single_bit_flip_in_format(-0.4375, 4)))
 
-    # bitwidth of 6, 1 sign bit, 3 exponent bits, 2 mantissa bits
-    fp6 = _ieee754(
+    # format_to_real_tensor
+    test1 = torch.tensor([[-0.9375, 0.3125,  0.0],
+                          [-0.4375, 0.5625, -0.0]])
+
+    expected1 = torch.tensor([[-0.9375, 0.3125,  0.0],
+                              [-0.4375, 0.5625, -0.0]])
+
+    assert(torch.equal(fp6.format_to_real_tensor(test1), expected1))
+
+    # convert_numsys_flip
+    assert(fp6.convert_numsys_flip(-0.9375, 0) == -0.9375)
+    assert(fp6.convert_numsys_flip(0.3125, 2, True) == 0.0625)
+
+    # denormals
+    assert(fp6.convert_numsys_flip(0, 4, True) == float('inf'))
+
+    # NaN
+    assert(fp6.convert_numsys_flip(0.5625, 4) == 0.5625)
+    assert(math.isnan(fp6.convert_numsys_flip(-0.4375, 4, True)))
+
+
+# IEEE754
+def test_ieee754():
+    # bitwidth of 8, 1 sign bit, 3 exponent bit, 4 mantissa bits
+    fp8 = _ieee754(
         exp_len=3,
-        mant_len=2,
+        mant_len=4,
         bias=None,
         denorm=True,
         max_val=None,
         min_val=None
     )
 
-    # negative and positive numbers
-    assert (fp6.format_to_real("101100") == -1.0)
-    assert (fp6.format_to_real("011001") == 10.0)
+    # int and bitstream conversions
+    assert(fp8.int_to_bitstream(6) == ['1', '1', '0'])
+    assert(fp8.bitstream_to_int(['0', '1', '1', '0', '1', '0', '1']) == 6)
+
+    assert(fp8.int_to_bitstream(3) == ['0', '1', '1'])
+    assert(fp8.bitstream_to_int(['0', '0', '1', '1', '0', '0', '1']) == 3)
+
+
+# num_fp32
+def test_num_fp32():
+    # bitwidth of 32, 1 sign bit, 8 exponent bits, 23 mantissa bits
+    fp32 = num_fp32()
+
+    # numbers
+    assert(fp32.format_to_real(['1', '0', '1', '1', '1', '1', '1', '1', '0',
+                                '0', '1', '0', '0', '0', '1', '0', '1', '0',
+                                '1', '0', '1', '1', '1', '1', '1', '1', '0',
+                                '1', '0', '0', '0', '0'])
+           == -0.63549518585205078125)
+    # assert(fp32.real_to_format())
 
     # denormals
-    assert (fp6.format_to_real("000000") == 0.0)
-    assert (fp6.format_to_real("100000") == 0.0)
+    assert(fp32.format_to_real(['0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0']) == 0.0)
+    assert(fp32.real_to_format(0.0) ==
+           ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+            '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
+            '0', '0', '0', '0', '0', '0'])
+
+    assert(fp32.format_to_real(['1', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0']) == 0.0)
 
     # infinity
-    assert (fp6.format_to_real("011100") == float('inf'))
-    assert (fp6.format_to_real("111100") == float('-inf'))
+    assert(fp32.format_to_real(['0', '1', '1', '1', '1', '1', '1', '1', '1',
+                                '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0'])
+           == float('inf'))
+    assert(fp32.format_to_real(['1', '1', '1', '1', '1', '1', '1', '1', '1',
+                                '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0'])
+           == float('-inf'))
 
     # NaN
-    assert (math.isnan(fp6.format_to_real("011101")))
-    assert (math.isnan(fp6.format_to_real("111110")))
+    assert(math.isnan(fp32.format_to_real(
+           ['0', '1', '1', '1', '1', '1', '1', '1', '1', '0', '0', '0', '1',
+            '0', '1', '0', '0', '1', '0', '0', '0', '0', '0', '1', '1', '0',
+            '0', '0', '0', '1', '0', '0'])))
+    assert(math.isnan(fp32.format_to_real(
+           ['1', '1', '1', '1', '1', '1', '1', '1', '1', '0', '0', '0', '0',
+            '0', '1', '1', '0', '0', '1', '1', '1', '0', '0', '0', '0', '1',
+            '0', '0', '0', '0', '0', '0'])))
+
+    test1 = torch.tensor([[-1.17,  2.71, -1.60,  0.43],
+                          [-1.14,  2.05,  1.01,  0.07],
+                          [ 0.16, -0.03, -0.89, -0.87],
+                          [-0.04, -0.39,  0.64, -2.89]])
+
+    expected1 = torch.tensor([[-1.17,  2.71, -1.60,  0.43],
+                              [-1.14,  2.05,  1.01,  0.07],
+                              [ 0.16, -0.03, -0.89, -0.87],
+                              [-0.04, -0.39,  0.64, -2.89]])
+
+    assert(torch.equal(fp32.real_to_format_tensor(test1), expected1))
+
+    # int and bitstream conversions
+    assert(fp32.int_to_bitstream(256) ==
+            ['1', '1', '1', '1', '1', '1', '1', '1'])
+
+    assert(fp32.int_to_bitstream(127) ==
+           ['0', '1', '1', '1', '1', '1', '1', '1'])
+    assert(fp32.bitstream_to_int(['0', '1', '1', '1', '1', '1', '1', '1'])
+           == 127)
+
+    # convert_numsys_tensor
+    assert(torch.equal(fp32.convert_numsys_tensor(test1), expected1))
+
+
+# num_fp16
+def test_num_fp16():
+    # bitwidth of 32, 1 sign bit, 8 exponent bits, 23 mantissa bits (FP32)
+    fp16 = num_fp16()
+
+    # numbers
+    assert(fp16.format_to_real(['1', '0', '1', '1', '1', '1', '1', '0', '1',
+                                '0', '1', '1', '1', '1', '0', '1'])
+           == -1.6845703125)
+    assert(fp16.real_to_format(-1.6845703125) ==
+           ['1', '0', '1', '1', '1', '1', '1', '0', '1', '0', '1', '1', '1',
+            '1', '0', '1'])
+
+    # denormals
+    assert(fp16.format_to_real(['0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0']) == 0.0)
+    assert(fp16.format_to_real(['1', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0']) == 0.0)
+
+    # infinity
+    assert(fp16.format_to_real(['0', '1', '1', '1', '1', '1', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0'])
+           == float('inf'))
+    assert(fp16.format_to_real(['1', '1', '1', '1', '1', '1', '0', '0', '0',
+                                '0', '0', '0', '0', '0', '0', '0'])
+           == float('-inf'))
+
+    # NaN
+    assert(math.isnan(fp16.format_to_real(['0', '1', '1', '1', '1', '1', '0',
+                                           '0', '0', '1', '0', '1', '0', '0',
+                                           '1', '0'])))
+
+    assert(math.isnan(fp16.format_to_real(['1', '1', '1', '1', '1', '1', '0',
+                                           '0', '0', '0', '0', '1', '1', '0',
+                                           '0', '1'])))
+
+    test1 = torch.tensor([[-1.17,  2.71, -1.60,  0.43],
+                          [-1.14,  2.05,  1.01,  0.07],
+                          [ 0.16, -0.03, -0.89, -0.87],
+                          [-0.04, -0.39,  0.64, -2.89]])
+
+    expected1 = torch.tensor([[-1.17,  2.71, -1.60,  0.43],
+                              [-1.14,  2.05,  1.01,  0.07],
+                              [ 0.16, -0.03, -0.89, -0.87],
+                              [-0.04, -0.39,  0.64, -2.89]]).to(torch.float16)
+
+    assert(torch.equal(fp16.real_to_format_tensor(test1), expected1))
+
+    # int and bitstream conversions
+    assert(fp16.int_to_bitstream(21) == ['1', '0', '1', '0', '1'])
+    assert(fp16.bitstream_to_int(['0', '1', '0', '1', '0', '1', '0', '1', '0',
+                                  '0', '0', '1', '1', '0', '1', '0']) == 21)
+
+
+# num_float_n
+def test_num_float_n():
+    # bitwidth of 6, 1 sign bit, 1 exponent bit, 4 mantissa bits
+    fp6 = num_float_n(
+        exp_len=1,
+        mant_len=4
+    )
+
+    # negative and positive numbers
+    assert(fp6.format_to_real(['1', '0', '1', '1', '1', '1']) == -0.9375)
+    assert(fp6.real_to_format(-0.9375) == ['1', '0', '1', '1', '1', '1'])
+    assert(fp6.format_to_real(['0', '0', '0', '1', '0', '1']) == 0.3125)
+    assert(fp6.real_to_format(0.3125) == ['0', '0', '0', '1', '0', '1'])
+
+    # denormals
+    assert(fp6.format_to_real(['0', '0', '0', '0', '0', '0']) == 0.0)
+    assert(fp6.real_to_format(0.0) == ['0', '0', '0', '0', '0', '0'])
+    assert(fp6.format_to_real(['1', '0', '0', '0', '0', '0']) == 0.0)
+
+    # infinity
+    assert(fp6.format_to_real(['0', '1', '0', '0', '0', '0']) == float('inf'))
+    assert(fp6.format_to_real(['1', '1', '0', '0', '0', '0']) == float('-inf'))
+
+    # NaN
+    assert(math.isnan(fp6.format_to_real(['0', '1', '1', '0', '0', '1'])))
+    assert(math.isnan(fp6.format_to_real(['1', '1', '0', '1', '1', '1'])))
 
     # bitwidth of 14, 1 sign bit, 4 exponent bits, 9 mantissa bits
-    fp14 = _ieee754(
+    fp14 = num_float_n(
         exp_len=4,
         mant_len=9,
-        bias=None,
-        denorm=True,
-        max_val=None,
-        min_val=None
     )
 
     # negative and positive numbers
-    assert (fp14.format_to_real("11100011011000") == -45.5)
-    assert (fp14.format_to_real("00110111001000") == 0.9453125)
+    assert(fp14.format_to_real(['1', '1', '1', '0', '0', '0', '1', '1', '0',
+                                '1', '1', '0', '0', '0']) == -45.5)
+    assert(fp14.format_to_real(['0', '0', '1', '1', '0', '1', '1', '1', '0',
+                                '0', '1', '0', '0', '0']) == 0.9453125)
 
     # denormals
-    assert (fp14.format_to_real("00000000000000") == 0.0)
-    assert (fp14.format_to_real("10000000000000") == 0.0)
+    assert(fp14.format_to_real(['0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0']) == 0.0)
+    assert(fp14.format_to_real(['1', '0', '0', '0', '0', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0']) == 0.0)
 
     # infinity
-    assert (fp14.format_to_real("01111000000000") == float('inf'))
-    assert (fp14.format_to_real("11111000000000") == float('-inf'))
+    assert(fp14.format_to_real(['0', '1', '1', '1', '1', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0']) == float('inf'))
+    assert(fp14.format_to_real(['1', '1', '1', '1', '1', '0', '0', '0', '0',
+                                '0', '0', '0', '0', '0']) == float('-inf'))
 
     # NaN
-    assert (math.isnan(fp14.format_to_real("01111000000001")))
-    assert (math.isnan(fp14.format_to_real("11111000000010")))
+    assert(math.isnan(fp14.format_to_real(['0', '1', '1', '1', '1', '0', '0',
+                                           '0', '0', '0', '0', '0', '0', '1'])))
+    assert(math.isnan(fp14.format_to_real(['1', '1', '1', '1', '1', '0', '0',
+                                           '0', '0', '0', '0', '0', '1', '0'])))
 
-    # bitwidth of 14, 1 sign bit, 6 exponent bits, 7 mantissa bits
-    fp14 = _ieee754(
-        exp_len=6,
-        mant_len=7,
-        bias=None,
-        denorm=True,
-        max_val=None,
-        min_val=None
-    )
 
-    # negative and positive numbers
-    assert (fp14.format_to_real("10100111100100") == -0.00043487548828125)
-    assert (fp14.format_to_real("00111000011010") == 0.150390625)
+# num_bfloat16
+def test_num_bfloat16():
+    bfloat = num_bfloat16()
+
+    # numbers
+    assert(bfloat.format_to_real(['1', '0', '1', '1', '1', '1', '1', '0', '1',
+                                  '0', '1', '1', '1', '1', '0', '1'])
+           == -0.369140625)
 
     # denormals
-    assert (fp14.format_to_real("00000000000000") == 0.0)
-    assert (fp14.format_to_real("10000000000000") == 0.0)
+    assert(bfloat.format_to_real(['0', '0', '0', '0', '0', '0', '0', '0', '0',
+                                  '0', '0', '0', '0', '0', '0', '0']) == 0.0)
+    assert(bfloat.format_to_real(['1', '0', '0', '0', '0', '0', '0', '0', '0',
+                                  '0', '0', '0', '0', '0', '0', '0']) == 0.0)
 
     # infinity
-    assert (fp14.format_to_real("01111110000000") == float('inf'))
-    assert (fp14.format_to_real("11111110000000") == float('-inf'))
+    assert(bfloat.format_to_real(['0', '1', '1', '1', '1', '1', '1', '1', '1',
+                                  '0', '0', '0', '0', '0', '0', '0'])
+           == float('inf'))
+    assert(bfloat.format_to_real(['1', '1', '1', '1', '1', '1', '1', '1', '1',
+                                  '0', '0', '0', '0', '0', '0', '0'])
+           == float('-inf'))
 
     # NaN
-    assert (math.isnan(fp14.format_to_real("01111110101001")))
-    assert (math.isnan(fp14.format_to_real("11111110010110")))
+    assert(math.isnan(bfloat.format_to_real(['0', '1', '1', '1', '1', '1', '1',
+                                             '1', '1', '1', '0', '1', '0', '0',
+                                             '1', '0'])))
 
-    # bitwidth of 27, 1 sign bit, 6 exponent bits, 20 mantissa bits
-    fp27 = _ieee754(
-        exp_len=6,
-        mant_len=20,
-        bias=None,
-        denorm=True,
-        max_val=None,
-        min_val=None
-    )
+    assert(math.isnan(bfloat.format_to_real(['1', '1', '1', '1', '1', '1', '1',
+                                             '1', '1', '0', '0', '1', '1', '0',
+                                             '0', '1'])))
 
-    # negative and positive numbers
-    assert (fp27.format_to_real("001111110110000000010011100") == 1.687648773193359375)
-    assert (fp27.format_to_real("110101001011011111100110011") == -2783.599609375)
+    test1 = torch.tensor([[-1.17,  2.71, -1.60,  0.43],
+                          [-1.14,  2.05,  1.01,  0.07],
+                          [ 0.16, -0.03, -0.89, -0.87],
+                          [-0.04, -0.39,  0.64, -2.89]])
 
-    # denormals
-    assert (fp27.format_to_real("000000000000000000000000000") == 0.0)
-    assert (fp27.format_to_real("100000000000000000000000000") == 0.0)
+    expected1 = torch.tensor([[-1.17,  2.71, -1.60,  0.43],
+                              [-1.14,  2.05,  1.01,  0.07],
+                              [ 0.16, -0.03, -0.89, -0.87],
+                              [-0.04, -0.39,  0.64, -2.89]]).to(torch.bfloat16)
 
-    # infinity
-    assert (fp27.format_to_real("011111100000000000000000000") == float('inf'))
-    assert (fp27.format_to_real("111111100000000000000000000") == float('-inf'))
+    assert(torch.equal(bfloat.real_to_format_tensor(test1), expected1))
 
-    # NaN
-    assert (math.isnan(fp27.format_to_real("011111100010000100010010000")))
-    assert (math.isnan(fp27.format_to_real("111111100000110000010111000")))
-
-    # bitwidth of 27, 1 sign bit, 16 exponent bits, 10 mantissa bits
-    fp27 = _ieee754(
-        exp_len=16,
-        mant_len=10,
-        bias=None,
-        denorm=True,
-        max_val=None,
-        min_val=None
-    )
-
-    # negative and positive numbers
-    assert (fp27.format_to_real("1100000000000001111110110011") == -31.3984375)
-    assert (fp27.format_to_real("010000000000101000010011100") == 2416640)
-
-    # denormals
-    assert (fp27.format_to_real("000000000000000000000000000") == 0.0)
-    assert (fp27.format_to_real("100000000000000000000000000") == 0.0)
-
-    # infinity
-    assert (fp27.format_to_real("011111111111111110000000000") == float('inf'))
-    assert (fp27.format_to_real("111111111111111110000000000") == float('-inf'))
-
-    # NaN
-    assert (math.isnan(fp27.format_to_real("011111111111111110000111000")))
-    assert (math.isnan(fp27.format_to_real("111111111111111110100100011")))
-
-    # bitwidth of 32, 1 sign bit, 8 exponent bits, 23 mantissa bits (FP32)
-    fp32 = _ieee754(
-        exp_len=8,
-        mant_len=23,
-        bias=None,
-        denorm=True,
-        max_val=None,
-        min_val=None
-    )
-
-    # negative and positive numbers
-    assert (fp32.format_to_real("10111111001000101010111111010000") == -0.63549518585205078125)
-    assert (fp32.format_to_real("01000000000000000000000000000001") == 2.00000023841857910156)
-
-    # denormals
-    assert (fp32.format_to_real("00000000000000000000000000000000") == 0.0)
-    assert (fp32.format_to_real("10000000000000000000000000000000") == 0.0)
-
-    # infinity
-    assert (fp32.format_to_real("01111111100000000000000000000000") == float('inf'))
-    assert (fp32.format_to_real("11111111100000000000000000000000") == float('-inf'))
-
-    # NaN
-    assert (math.isnan(fp32.format_to_real("01111111100010100100000110000100")))
-    assert (math.isnan(fp32.format_to_real("11111111100000110011100001000000")))
-
-    # bitwidth of 6, 1 sign bit, 15 exponent bits, 16 mantissa bits
-    fp32 = _ieee754(
-        exp_len=15,
-        mant_len=16,
-        bias=None,
-        denorm=True,
-        max_val=None,
-        min_val=None
-    )
-
-    # negative and positive numbers
-    assert (fp32.format_to_real("10111111111011101010111111010000") == -0.00001286901533603668212890625)
-    assert (fp32.format_to_real("01000000000011000001010010100010") == 8852.25)
-
-    # denormals
-    assert (fp32.format_to_real("00000000000000000000000000000000") == 0.0)
-    assert (fp32.format_to_real("10000000000000000000000000000000") == 0.0)
-
-    # infinity
-    assert (fp32.format_to_real("01111111111111110000000000000000") == float('inf'))
-    assert (fp32.format_to_real("11111111111111110000000000000000") == float('-inf'))
-
-    # NaN
-    assert (math.isnan(fp32.format_to_real("01111111111111110001101111001111")))
-    assert (math.isnan(fp32.format_to_real("11111111111111111110010011111000")))
-
-    return
+    # int and bitstream conversions
+    assert(bfloat.int_to_bitstream(255)
+           == ['1', '1', '1', '1', '1', '1', '1', '1'])
+    assert(bfloat.bitstream_to_int(['0', '1', '1', '1', '1', '1', '1', '1', '1',
+                                    '0', '0', '1', '1', '0', '1', '0']) == 255)
 
 
 # Fixed Point
@@ -225,12 +325,25 @@ def test_fixed():
     )
 
     # negative and positive numbers
-    assert (fixed6.format_to_real("011001") == 3.125)
-    assert (fixed6.format_to_real("110000") == -2.0)
-    assert (fixed6.format_to_real("100101") == -0.625)
-    assert (fixed6.format_to_real("010111") == 2.875)
-    assert (fixed6.format_to_real("100000") == -0.0)
-    assert (fixed6.format_to_real("111111") == -3.875)
+    assert(fixed6.format_to_real(['0', '1', '1', '0', '0', '1']) == 3.125)
+    assert(fixed6.real_to_format(3.125) == ['0', '1', '1', '0', '0', '1'])
+
+    assert(fixed6.format_to_real(['1', '1', '0', '0', '0', '0']) == -2.0)
+    assert(fixed6.real_to_format(-2.0) == ['1', '1', '0', '0', '0', '0'])
+
+    assert(fixed6.format_to_real(['1', '0', '0', '1', '0', '1']) == -0.625)
+    assert(fixed6.real_to_format(-0.625) == ['1', '0', '0', '1', '0', '1'])
+
+    assert(fixed6.format_to_real(['0', '1', '0', '1', '1', '1']) == 2.875)
+    assert(fixed6.real_to_format(2.875) == ['0', '1', '0', '1', '1', '1'])
+
+    assert(fixed6.format_to_real(['1', '0', '0', '0', '0', '0']) == -0.0)
+
+    assert(fixed6.format_to_real(['1', '1', '1', '1', '1', '1']) == -3.875)
+    assert(fixed6.real_to_format(-3.875) == ['1', '1', '1', '1', '1', '1'])
+
+    # maximum
+    assert(fixed6.real_to_format(8) == ['0', '1', '1', '0', '0', '0'])
 
     # bitwidth of 6, 1 sign bit, 3 integer bits, 2 fraction bits
     fixed6 = num_fixed_pt(
@@ -239,12 +352,22 @@ def test_fixed():
     )
 
     # negative and positive numbers
-    assert (fixed6.format_to_real("011001") == 6.25)
-    assert (fixed6.format_to_real("110000") == -4.0)
-    assert (fixed6.format_to_real("100101") == -1.25)
-    assert (fixed6.format_to_real("100000") == -0.0)
-    assert (fixed6.format_to_real("010111") == 5.75)
-    assert (fixed6.format_to_real("111111") == -7.75)
+    assert(fixed6.format_to_real(['0', '1', '1', '0', '0', '1']) == 6.25)
+    assert(fixed6.real_to_format(6.25) == ['0', '1', '1', '0', '0', '1'])
+
+    assert(fixed6.format_to_real(['1', '1', '0', '0', '0', '0']) == -4.0)
+    assert(fixed6.real_to_format(-4.0) == ['1', '1', '0', '0', '0', '0'])
+
+    assert(fixed6.format_to_real(['1', '0', '0', '1', '0', '1']) == -1.25)
+    assert(fixed6.real_to_format(-1.25) == ['1', '0', '0', '1', '0', '1'])
+
+    assert(fixed6.format_to_real(['1', '0', '0', '0', '0', '0']) == -0.0)
+
+    assert(fixed6.format_to_real(['0', '1', '0', '1', '1', '1']) == 5.75)
+    assert(fixed6.real_to_format(5.75) == ['0', '1', '0', '1', '1', '1'])
+
+    assert(fixed6.format_to_real(['1', '1', '1', '1', '1', '1']) == -7.75)
+    assert(fixed6.real_to_format(-7.75) == ['1', '1', '1', '1', '1', '1'])
 
     # bitwidth of 10, 1 sign bit, 2 integer bits, 7 fraction bits
     fixed10 = num_fixed_pt(
@@ -253,12 +376,35 @@ def test_fixed():
     )
 
     # negative and positive numbers
-    assert (fixed10.format_to_real("1111110000") == -3.875)
-    assert (fixed10.format_to_real("0100010011") == 2.1484375)
-    assert (fixed10.format_to_real("1011110110") == -1.921875)
-    assert (fixed10.format_to_real("1010000000") == -1.0)
-    assert (fixed10.format_to_real("1011100000") == -1.75)
-    assert (fixed10.format_to_real("1011001111") == -1.6171875)
+    assert(fixed10.format_to_real(
+           ['1', '1', '1', '1', '1', '1', '0', '0', '0', '0']) == -3.875)
+    assert(fixed10.real_to_format(-3.875)
+           == ['1', '1', '1', '1', '1', '1', '0', '0', '0', '0'])
+
+    assert(fixed10.format_to_real(
+           ['0', '1', '0', '0', '0', '1', '0', '0', '1', '1']) == 2.1484375)
+    assert(fixed10.real_to_format(2.1484375)
+           == ['0', '1', '0', '0', '0', '1', '0', '0', '1', '1'])
+
+    assert(fixed10.format_to_real(
+           ['1', '0', '1', '1', '1', '1', '0', '1', '1', '0']) == -1.921875)
+    assert(fixed10.real_to_format(-1.921875)
+           == ['1', '0', '1', '1', '1', '1', '0', '1', '1', '0'])
+
+    assert(fixed10.format_to_real(
+           ['1', '0', '1', '0', '0', '0', '0', '0', '0', '0']) == -1.0)
+    assert(fixed10.real_to_format(-1.0)
+           == ['1', '0', '1', '0', '0', '0', '0', '0', '0', '0'])
+
+    assert(fixed10.format_to_real(
+           ['1', '0', '1', '1', '1', '0', '0', '0', '0', '0']) == -1.75)
+    assert(fixed10.real_to_format(-1.75)
+           == ['1', '0', '1', '1', '1', '0', '0', '0', '0', '0'])
+
+    assert(fixed10.format_to_real(
+           ['1', '0', '1', '1', '0', '0', '1', '1', '1', '1']) == -1.6171875)
+    assert(fixed10.real_to_format(-1.6171875)
+           == ['1', '0', '1', '1', '0', '0', '1', '1', '1', '1'])
 
     # bitwidth of 10, 1 sign bit, 6 integer bits, 3 fraction bits
     fixed10 = num_fixed_pt(
@@ -267,12 +413,35 @@ def test_fixed():
     )
 
     # negative and positive numbers
-    assert (fixed10.format_to_real("1111110000") == -62.0)
-    assert (fixed10.format_to_real("0100010011") == 34.375)
-    assert (fixed10.format_to_real("1011110110") == -30.75)
-    assert (fixed10.format_to_real("1010000000") == -16.0)
-    assert (fixed10.format_to_real("1011100000") == -28.0)
-    assert (fixed10.format_to_real("1011001111") == -25.875)
+    assert(fixed10.format_to_real(
+           ['1', '1', '1', '1', '1', '1', '0', '0', '0', '0']) == -62.0)
+    assert(fixed10.real_to_format(-62.0)
+           == ['1', '1', '1', '1', '1', '1', '0', '0', '0', '0'])
+
+    assert(fixed10.format_to_real(
+           ['0', '1', '0', '0', '0', '1', '0', '0', '1', '1']) == 34.375)
+    assert(fixed10.real_to_format(34.375)
+           == ['0', '1', '0', '0', '0', '1', '0', '0', '1', '1'])
+
+    assert(fixed10.format_to_real(
+           ['1', '0', '1', '1', '1', '1', '0', '1', '1', '0']) == -30.75)
+    assert(fixed10.real_to_format(-30.75)
+           == ['1', '0', '1', '1', '1', '1', '0', '1', '1', '0'])
+
+    assert(fixed10.format_to_real(
+           ['1', '0', '1', '0', '0', '0', '0', '0', '0', '0']) == -16.0)
+    assert(fixed10.real_to_format(-16.0)
+           == ['1', '0', '1', '0', '0', '0', '0', '0', '0', '0'])
+
+    assert(fixed10.format_to_real(
+           ['1', '0', '1', '1', '1', '0', '0', '0', '0', '0']) == -28.0)
+    assert(fixed10.real_to_format(-28.0)
+           == ['1', '0', '1', '1', '1', '0', '0', '0', '0', '0'])
+
+    assert(fixed10.format_to_real(
+           ['1', '0', '1', '1', '0', '0', '1', '1', '1', '1']) == -25.875)
+    assert(fixed10.real_to_format(-25.875)
+           == ['1', '0', '1', '1', '0', '0', '1', '1', '1', '1'])
 
     # bitwidth of 23, 1 sign bit, 13 integer bits, 9 fraction bits
     fixed23 = num_fixed_pt(
@@ -281,12 +450,48 @@ def test_fixed():
     )
 
     # negative and positive numbers
-    assert (fixed23.format_to_real("00111011011011110001000") == 3803.765625)
-    assert (fixed23.format_to_real("10000110111110001000000") == -446.125)
-    assert (fixed23.format_to_real("00011100000101110011110") == 1797.80859375)
-    assert (fixed23.format_to_real("00110000000010111010000") == 3074.90625)
-    assert (fixed23.format_to_real("01100110000010111001110") == 6530.90234375)
-    assert (fixed23.format_to_real("11111111001000010100011") == -8136.318359375)
+    assert(fixed23.format_to_real(
+           ['0', '0', '1', '1', '1', '0', '1', '1', '0', '1', '1', '0', '1',
+            '1', '1', '1', '0', '0', '0', '1', '0', '0', '0']) == 3803.765625)
+    assert(fixed23.real_to_format(3803.765625)
+           == ['0', '0', '1', '1', '1', '0', '1', '1', '0', '1', '1', '0', '1',
+               '1', '1', '1', '0', '0', '0', '1', '0', '0', '0'])
+
+    assert(fixed23.format_to_real(
+           ['1', '0', '0', '0', '0', '1', '1', '0', '1', '1', '1', '1', '1',
+            '0', '0', '0', '1', '0', '0', '0', '0', '0', '0']) == -446.125)
+    assert(fixed23.real_to_format(-446.125)
+           == ['1', '0', '0', '0', '0', '1', '1', '0', '1', '1', '1', '1', '1',
+               '0', '0', '0', '1', '0', '0', '0', '0', '0', '0'])
+
+    assert(fixed23.format_to_real(
+           ['0', '0', '0', '1', '1', '1', '0', '0', '0', '0', '0', '1', '0',
+            '1', '1', '1', '0', '0', '1', '1', '1', '1', '0']) == 1797.80859375)
+    assert(fixed23.real_to_format(1797.80859375)
+           == ['0', '0', '0', '1', '1', '1', '0', '0', '0', '0', '0', '1', '0',
+               '1', '1', '1', '0', '0', '1', '1', '1', '1', '0'])
+
+    assert(fixed23.format_to_real(
+           ['0', '0', '1', '1', '0', '0', '0', '0', '0', '0', '0', '0', '1',
+            '0', '1', '1', '1', '0', '1', '0', '0', '0', '0']) == 3074.90625)
+    assert(fixed23.real_to_format(3074.90625)
+           == ['0', '0', '1', '1', '0', '0', '0', '0', '0', '0', '0', '0', '1',
+               '0', '1', '1', '1', '0', '1', '0', '0', '0', '0'])
+
+    assert(fixed23.format_to_real(
+           ['0', '1', '1', '0', '0', '1', '1', '0', '0', '0', '0', '0', '1',
+            '0', '1', '1', '1', '0', '0', '1', '1', '1', '0']) == 6530.90234375)
+    assert(fixed23.real_to_format(6530.90234375)
+           == ['0', '1', '1', '0', '0', '1', '1', '0', '0', '0', '0', '0', '1',
+               '0', '1', '1', '1', '0', '0', '1', '1', '1', '0'])
+
+    assert(fixed23.format_to_real(
+           ['1', '1', '1', '1', '1', '1', '1', '1', '0', '0', '1', '0', '0',
+            '0', '0', '1', '0', '1', '0', '0', '0', '1', '1'])
+           == -8136.318359375)
+    assert(fixed23.real_to_format(-8136.318359375)
+           == ['1', '1', '1', '1', '1', '1', '1', '1', '0', '0', '1', '0', '0',
+               '0', '0', '1', '0', '1', '0', '0', '0', '1', '1'])
 
     # bitwidth of 23, 1 sign bit, 15 integer bits, 7 fraction bits
     fixed23 = num_fixed_pt(
@@ -295,56 +500,62 @@ def test_fixed():
     )
 
     # negative and positive numbers
-    assert (fixed23.format_to_real("00111011011011110001000") == 15215.0625)
-    assert (fixed23.format_to_real("10000110111110001000000") == -1784.5)
-    assert (fixed23.format_to_real("00011100000101110011110") == 7191.234375)
-    assert (fixed23.format_to_real("00110000000010111010000") == 12299.625)
-    assert (fixed23.format_to_real("01100110000010111001110") == 26123.609375)
-    assert (fixed23.format_to_real("11111111001000010100011") == -32545.2734375)
+    assert(fixed23.format_to_real(
+           ['0', '0', '1', '1', '1', '0', '1', '1', '0', '1', '1', '0', '1',
+            '1', '1', '1', '0', '0', '0', '1', '0', '0', '0']) == 15215.0625)
+    assert(fixed23.real_to_format(15215.0625)
+           == ['0', '0', '1', '1', '1', '0', '1', '1', '0', '1', '1', '0', '1',
+               '1', '1', '1', '0', '0', '0', '1', '0', '0', '0'])
 
-    # bitwidth of 32, 1 sign bit, 8 integer bits, 23 fraction bits
-    fixed32 = num_fixed_pt(
-        int_len=8,
-        frac_len=23
-    )
+    assert(fixed23.format_to_real(
+           ['1', '0', '0', '0', '0', '1', '1', '0', '1', '1', '1', '1', '1',
+            '0', '0', '0', '1', '0', '0', '0', '0', '0', '0']) == -1784.5)
+    assert(fixed23.real_to_format(-1784.5)
+           == ['1', '0', '0', '0', '0', '1', '1', '0', '1', '1', '1', '1', '1',
+               '0', '0', '0', '1', '0', '0', '0', '0', '0', '0'])
 
-    # negative and positive numbers
-    assert (fixed32.format_to_real("10100001001000101010111111010000") == -66.2709903717041015625)
-    assert (fixed32.format_to_real("01000001101011000001010010100010") == 131.34437966346740722656)
-    assert (fixed32.format_to_real("00110001111000000000010110101001") == 99.75017273426055908203)
-    assert (fixed32.format_to_real("01101010010001010101011001101100") == 212.54169988632202148438)
-    assert (fixed32.format_to_real("00010110110111000110111001100011") == 45.72211873531341552734)
-    assert (fixed32.format_to_real("00001101010100001010100110000010") == 26.63017296791076660156)
+    assert(fixed23.format_to_real(
+           ['0', '0', '0', '1', '1', '1', '0', '0', '0', '0', '0', '1', '0',
+            '1', '1', '1', '0', '0', '1', '1', '1', '1', '0']) == 7191.234375)
+    assert(fixed23.real_to_format(7191.234375)
+           == ['0', '0', '0', '1', '1', '1', '0', '0', '0', '0', '0', '1', '0',
+               '1', '1', '1', '0', '0', '1', '1', '1', '1', '0'])
 
-    # bitwidth of 32, 1 sign bit, 2 integer bits, 29 fraction bits
-    fixed32 = num_fixed_pt(
-        int_len=2,
-        frac_len=29
-    )
+    assert(fixed23.format_to_real(
+           ['0', '0', '1', '1', '0', '0', '0', '0', '0', '0', '0', '0', '1',
+            '0', '1', '1', '1', '0', '1', '0', '0', '0', '0']) == 12299.625)
+    assert(fixed23.real_to_format(12299.625)
+           == ['0', '0', '1', '1', '0', '0', '0', '0', '0', '0', '0', '0', '1',
+               '0', '1', '1', '1', '0', '1', '0', '0', '0', '0'])
 
-    # negative and positive numbers
-    assert (fixed32.format_to_real("10100001001000101010111111010000") == -1.03548422455787658691)
-    assert (fixed32.format_to_real("01000001101011000001010010100010") == 2.05225593224167823792)
-    assert (fixed32.format_to_real("00110001111000000000010110101001") == 1.55859644897282123566)
-    assert (fixed32.format_to_real("01101010010001010101011001101100") == 3.32096406072378158569)
-    assert (fixed32.format_to_real("00010110110111000110111001100011") == 0.71440810523927211761)
-    assert (fixed32.format_to_real("00001101010100001010100110000010") == 0.41609645262360572815)
+    assert(fixed23.format_to_real(
+           ['0', '1', '1', '0', '0', '1', '1', '0', '0', '0', '0', '0', '1',
+            '0', '1', '1', '1', '0', '0', '1', '1', '1', '0']) == 26123.609375)
+    assert(fixed23.real_to_format(26123.609375)
+           == ['0', '1', '1', '0', '0', '1', '1', '0', '0', '0', '0', '0', '1',
+               '0', '1', '1', '1', '0', '0', '1', '1', '1', '0'])
 
-    return
+    assert(fixed23.format_to_real(
+           ['1', '1', '1', '1', '1', '1', '1', '1', '0', '0', '1', '0', '0',
+            '0', '0', '1', '0', '1', '0', '0', '0', '1', '1'])
+           == -32545.2734375)
+    assert(fixed23.real_to_format(-32545.2734375)
+           == ['1', '1', '1', '1', '1', '1', '1', '1', '0', '0', '1', '0', '0',
+               '0', '0', '1', '0', '1', '0', '0', '0', '1', '1'])
 
 
 # Adaptive Float
 def test_adaptive():
     # test tensors to use on different systems
-    test1 = torch.tensor([[-1.17, 2.71, -1.60, 0.43],
-                          [-1.14, 2.05, 1.01, 0.07],
-                          [0.16, -0.03, -0.89, -0.87],
-                          [-0.04, -0.39, 0.64, -2.89]])
+    test1 = torch.tensor([[-1.17,  2.71, -1.60,  0.43],
+                          [-1.14,  2.05,  1.01,  0.07],
+                          [ 0.16, -0.03, -0.89, -0.87],
+                          [-0.04, -0.39,  0.64, -2.89]])
 
-    test2 = torch.tensor([[997.481, 188.034, -147.376, -277.766],
-                         [-617.844, -755.696, 18.283, 670.539],
-                         [-709.682, -841.260, 300.587, 837.047],
-                         [347.082, 98.871, -775.379, 709.284]])
+    test2 = torch.tensor([[ 997.481,  188.034, -147.376, -277.766],
+                          [-617.844, -755.696,   18.283,  670.539],
+                          [-709.682, -841.260,  300.587,  837.047],
+                          [ 347.082,   98.871, -775.379,  709.284]])
 
     # bitwidth of 4, 1 sign bit, 2 exponent bits, 1 mantissa bit
     adaptive4 = adaptive_float(
@@ -355,19 +566,19 @@ def test_adaptive():
     )
 
     # expected tensors for tests
-    expected1 = torch.tensor([[-1.0, 3.0, -1.5, 0.0],
-                              [-1.0, 2.0, 1.0, 0.0],
-                              [0.0, -0.0, -0.0, -0.0],
-                              [-0.0, -0.0, 0.0, -3.0]])
+    expected1 = torch.tensor([[-1.0,  3.0, -1.5,  0.0],
+                              [-1.0,  2.0,  1.0,  0.0],
+                              [ 0.0, -0.0, -0.0, -0.0],
+                              [-0.0, -0.0,  0.0, -3.0]])
 
-    assert (torch.equal(adaptive4.real_to_format_tensor(test1), expected1))
+    assert(torch.equal(adaptive4.real_to_format_tensor(test1), expected1))
 
-    expected2 = torch.tensor([[768.0, 0.0, -0.0, -256.0],
-                              [-512.0, -768.0, 0.0, 768.0],
-                              [-768.0, -768.0, 256.0, 768.0],
-                              [384.0, 0.0, -768.0, 768.0]])
+    expected2 = torch.tensor([[ 768.0,    0.0,   -0.0, -256.0],
+                              [-512.0, -768.0,    0.0,  768.0],
+                              [-768.0, -768.0,  256.0,  768.0],
+                              [ 384.0,    0.0, -768.0,  768.0]])
 
-    assert (torch.equal(adaptive4.real_to_format_tensor(test2), expected2))
+    assert(torch.equal(adaptive4.real_to_format_tensor(test2), expected2))
 
     # bitwidth of 6, 1 sign bit, 2 exponent bits, 3 mantissa bits
     adaptive6 = adaptive_float(
@@ -378,19 +589,19 @@ def test_adaptive():
     )
 
     # expected tensors for tests
-    expected1 = torch.tensor([[-1.125, 2.750, -1.625, 0.0],
-                              [-1.125, 2.0, 1.0, 0.0],
-                              [0.0, -0.0, -0.0, -0.0],
-                              [-0.0, -0.0, 0.0, -3.0]])
+    expected1 = torch.tensor([[-1.125, 2.750, -1.625,  0.0],
+                              [-1.125,   2.0,    1.0,  0.0],
+                              [   0.0,  -0.0,   -0.0, -0.0],
+                              [  -0.0,  -0.0,    0.0, -3.0]])
 
-    assert (torch.equal(adaptive6.real_to_format_tensor(test1), expected1))
+    assert(torch.equal(adaptive6.real_to_format_tensor(test1), expected1))
 
-    expected2 = torch.tensor([[960.0, 0.0, -0.0, -288.0],
-                              [-640.0, -768.0, 0.0, 640.0],
-                              [-704.0, -832.0, 288.0, 832.0],
-                              [352.0, 0.0, -768.0, 704.0]])
+    expected2 = torch.tensor([[ 960.0,    0.0,   -0.0, -288.0],
+                              [-640.0, -768.0,    0.0,  640.0],
+                              [-704.0, -832.0,  288.0,  832.0],
+                              [ 352.0,    0.0, -768.0,  704.0]])
 
-    assert (torch.equal(adaptive6.real_to_format_tensor(test2), expected2))
+    assert(torch.equal(adaptive6.real_to_format_tensor(test2), expected2))
 
     # bitwidth of 11, 1 sign bit, 4 exponent bits, 6 mantissa bits
     adaptive11 = adaptive_float(
@@ -401,19 +612,20 @@ def test_adaptive():
     )
 
     # expected tensors for tests
-    expected1 = torch.tensor([[-1.171875, 2.71875, -1.59375, 0.4296875],
-                             [-1.140625, 2.0625, 1.015625, 0.0703125],
-                             [0.16015625, -0.030029296875, -0.890625, -0.8671875],
-                             [-0.0400390625, -0.390625, 0.640625, -2.875]])
+    expected1 = \
+        torch.tensor([[    -1.171875,         2.71875,  -1.59375,  0.4296875],
+                      [    -1.140625,          2.0625,  1.015625,  0.0703125],
+                      [   0.16015625, -0.030029296875, -0.890625, -0.8671875],
+                      [-0.0400390625,       -0.390625,  0.640625,     -2.875]])
 
-    assert (torch.equal(adaptive11.real_to_format_tensor(test1), expected1))
+    assert(torch.equal(adaptive11.real_to_format_tensor(test1), expected1))
 
-    expected2 = torch.tensor([[1000.0, 188.0, -148.0, -276.0],
-                              [-616.0, -752.0, 18.25, 672.0],
-                              [-712.0, -840.0, 300.0, 840.0],
-                              [348.0, 99.0, -776.0, 712.0]])
+    expected2 = torch.tensor([[1000.0,  188.0, -148.0, -276.0],
+                              [-616.0, -752.0,  18.25,  672.0],
+                              [-712.0, -840.0,  300.0,  840.0],
+                              [ 348.0,   99.0, -776.0,  712.0]])
 
-    assert (torch.equal(adaptive11.real_to_format_tensor(test2), expected2))
+    assert(torch.equal(adaptive11.real_to_format_tensor(test2), expected2))
 
     # bitwidth of 11, 1 sign bit, 2 exponent bits, 8 mantissa bits
     adaptive11 = adaptive_float(
@@ -424,35 +636,33 @@ def test_adaptive():
     )
 
     # expected tensors for tests
-    expected1 = torch.tensor([[-1.171875, 2.7109375, -1.6015625, 0.0],
-                              [-1.140625, 2.046875, 1.01171875, 0.0],
-                              [0.0, -0.0, -0.0, -0.0],
-                              [-0.0, -0.0, 0.0, -2.890625]])
+    expected1 = torch.tensor([[-1.171875, 2.7109375, -1.6015625,       0.0],
+                              [-1.140625,  2.046875, 1.01171875,       0.0],
+                              [      0.0,      -0.0,       -0.0,      -0.0],
+                              [     -0.0,      -0.0,        0.0, -2.890625]])
 
-    assert (torch.equal(adaptive11.real_to_format_tensor(test1), expected1))
+    assert(torch.equal(adaptive11.real_to_format_tensor(test1), expected1))
 
-    expected2 = torch.tensor([[998.0, 0.0, -0.0, -278.0],
-                              [-618.0, -756.0, 0.0, 670.0],
-                              [-710.0, -842.0, 301.0, 838.0],
-                              [347.0, 0.0, -776.0, 710.0]])
+    expected2 = torch.tensor([[ 998.0,    0.0,   -0.0, -278.0],
+                              [-618.0, -756.0,    0.0,  670.0],
+                              [-710.0, -842.0,  301.0,  838.0],
+                              [ 347.0,    0.0, -776.0,  710.0]])
 
-    assert (torch.equal(adaptive11.real_to_format_tensor(test2), expected2))
-
-    return
+    assert(torch.equal(adaptive11.real_to_format_tensor(test2), expected2))
 
 
 # Block Float
 def test_block():
     # test tensors to use on different systems
-    test1 = torch.tensor([[-1.17, 2.71, -1.60, 0.43],
-                          [-1.14, 2.05, 1.01, 0.07],
-                          [0.16, -0.03, -0.89, -0.87],
-                          [-0.04, -0.39, 0.64, -2.89]])
+    test1 = torch.tensor([[-1.17,  2.71, -1.60,  0.43],
+                          [-1.14,  2.05,  1.01,  0.07],
+                          [ 0.16, -0.03, -0.89, -0.87],
+                          [-0.04, -0.39,  0.64, -2.89]])
 
-    test2 = torch.tensor([[997.481, 188.034, -147.376, -277.766],
-                          [-617.844, -755.696, 18.283, 670.539],
-                          [-709.682, -841.260, 300.587, 837.047],
-                          [347.082, 98.871, -775.379, 709.284]])
+    test2 = torch.tensor([[ 997.481,  188.034, -147.376, -277.766],
+                          [-617.844, -755.696,   18.283,  670.539],
+                          [-709.682, -841.260,  300.587,  837.047],
+                          [ 347.082,   98.871, -775.379,  709.284]])
 
     # bitwidth of 4, 1 sign bit, 2 exponent bits, 1 mantissa bit
     block4 = block_fp(
@@ -462,19 +672,19 @@ def test_block():
     )
 
     # expected tensors for tests
-    expected1 = torch.tensor([[-1.0, 3.0, -2.0, 0.0],
-                              [-1.0, 2.0, 1.0, 0.0],
-                              [0.0, -0.0, -0.0, -0.0],
-                              [-0.0, -0.0, 0.0, -3.0]])
+    expected1 = torch.tensor([[-1.0,  3.0, -2.0,  0.0],
+                              [-1.0,  2.0,  1.0,  0.0],
+                              [ 0.0, -0.0, -0.0, -0.0],
+                              [-0.0, -0.0,  0.0, -3.0]])
 
-    assert (torch.equal(block4.real_to_format_tensor(test1), expected1))
+    assert(torch.equal(block4.real_to_format_tensor(test1), expected1))
 
-    expected2 = torch.tensor([[3.0, 3.0, -3.0, -3.0],
-                              [-3.0, -3.0, 3.0, 3.0],
-                              [-3.0, -3.0, 3.0, 3.0],
-                              [3.0, 3.0, -3.0, 3.0]])
+    expected2 = torch.tensor([[ 3.0,  3.0, -3.0, -3.0],
+                              [-3.0, -3.0,  3.0,  3.0],
+                              [-3.0, -3.0,  3.0,  3.0],
+                              [ 3.0,  3.0, -3.0,  3.0]])
 
-    assert (torch.equal(block4.real_to_format_tensor(test2), expected2))
+    assert(torch.equal(block4.real_to_format_tensor(test2), expected2))
 
     # bitwidth of 7, 1 sign bit, 3 exponent bits, 3 mantissa bits
     block7 = block_fp(
@@ -484,19 +694,19 @@ def test_block():
     )
 
     # expected tensors for tests
-    expected1 = torch.tensor([[-1.25, 2.75, -1.5, 0.5],
-                              [-1.25, 2.0, 1.0, 0.0],
-                              [0.0, -0.0, -1.0, -0.75],
-                              [-0.0, -0.5, 0.75, -3.0]])
+    expected1 = torch.tensor([[-1.25, 2.75, -1.5,   0.5],
+                              [-1.25,  2.0,  1.0,   0.0],
+                              [  0.0, -0.0, -1.0, -0.75],
+                              [ -0.0, -0.5, 0.75,  -3.0]])
 
-    assert (torch.equal(block7.real_to_format_tensor(test1), expected1))
+    assert(torch.equal(block7.real_to_format_tensor(test1), expected1))
 
-    expected2 = torch.tensor([[15.0, 15.0, -15.0, -15.0],
-                              [-15.0, -15.0, 15.0, 15.0],
-                              [-15.0, -15.0, 15.0, 15.0],
-                              [15.0, 15.0, -15.0, 15.0]])
+    expected2 = torch.tensor([[ 15.0,  15.0, -15.0, -15.0],
+                              [-15.0, -15.0,  15.0,  15.0],
+                              [-15.0, -15.0,  15.0,  15.0],
+                              [ 15.0,  15.0, -15.0,  15.0]])
 
-    assert (torch.equal(block7.real_to_format_tensor(test2), expected2))
+    assert(torch.equal(block7.real_to_format_tensor(test2), expected2))
 
     # bitwidth of 10, 1 sign bit, 4 exponent bits, 5 mantissa bits
     block10 = block_fp(
@@ -507,18 +717,18 @@ def test_block():
 
     # expected tensors for tests
     expected1 = torch.tensor([[-1.1875, 2.6875, -1.625, 0.4375],
-                              [-1.125, 2.0625, 1.0, 0.0625],
-                              [0.1875, -0.0, -0.875, -0.875],
-                              [-0.0625, -0.375, 0.625, -2.875]])
+                              [ -1.125, 2.0625,    1.0, 0.0625],
+                              [ 0.1875,   -0.0, -0.875, -0.875],
+                              [-0.0625, -0.375,  0.625, -2.875]])
 
-    assert (torch.equal(block10.real_to_format_tensor(test1), expected1))
+    assert(torch.equal(block10.real_to_format_tensor(test1), expected1))
 
-    expected2 = torch.tensor([[252.0, 188.0, -148.0, -252.0],
-                              [-252.0, -252.0, 20.0, 252.0],
-                              [-252.0, -252.0, 252.0, 252.0],
-                              [252.0, 100.0, -252.0, 252.0]])
+    expected2 = torch.tensor([[ 252.0,  188.0, -148.0, -252.0],
+                              [-252.0, -252.0,   20.0,  252.0],
+                              [-252.0, -252.0,  252.0,  252.0],
+                              [ 252.0,  100.0, -252.0,  252.0]])
 
-    assert (torch.equal(block10.real_to_format_tensor(test2), expected2))
+    assert(torch.equal(block10.real_to_format_tensor(test2), expected2))
 
     # bitwidth of 10, 1 sign bit, 2 exponent bits, 7 mantissa bits
     block10 = block_fp(
@@ -528,25 +738,16 @@ def test_block():
     )
 
     # expected tensors for tests
-    expected1 = torch.tensor([[-1.171875, 2.703125, -1.59375, 0.0],
-                              [-1.140625, 2.046875, 1.015625, 0.0],
-                              [0.0, -0.0, -0.0, -0.0],
-                              [-0.0, -0.0, 0.0, -2.890625]])
+    expected1 = torch.tensor([[-1.171875, 2.703125, -1.59375,       0.0],
+                              [-1.140625, 2.046875, 1.015625,       0.0],
+                              [      0.0,     -0.0,     -0.0,      -0.0],
+                              [     -0.0,     -0.0,      0.0, -2.890625]])
 
-    assert (torch.equal(block10.real_to_format_tensor(test1), expected1))
+    assert(torch.equal(block10.real_to_format_tensor(test1), expected1))
 
-    expected2 = torch.tensor([[3.984375, 3.984375, -3.984375, -3.984375],
-                              [-3.984375, -3.984375, 3.984375, 3.984375],
-                              [-3.984375, -3.984375, 3.984375, 3.984375],
-                              [3.984375, 3.984375, -3.984375, 3.984375]])
+    expected2 = torch.tensor([[ 3.984375,  3.984375, -3.984375, -3.984375],
+                              [-3.984375, -3.984375,  3.984375,  3.984375],
+                              [-3.984375, -3.984375,  3.984375,  3.984375],
+                              [ 3.984375,  3.984375, -3.984375,  3.984375]])
 
-    assert (torch.equal(block10.real_to_format_tensor(test2), expected2))
-
-    return
-
-
-if __name__ == '__main__':
-    test_ieee754()
-    test_fixed()
-    test_adaptive()
-    test_block()
+    assert(torch.equal(block10.real_to_format_tensor(test2), expected2))
