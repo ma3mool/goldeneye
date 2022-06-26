@@ -1,11 +1,6 @@
-#ifndef GOLDENEYE_NUM_SYS_H
-#define GOLDENEYE_NUM_SYS_H 
-
 using namespace at;
 
-Tensor quantize_adaptivfloat(Tensor tensor, int n_bits, int n_exp, int bias);
 Tensor quantize_bfloat(Tensor tensor, int n_bits, int n_exp);
-
-
-#endif
-
+Tensor quantize_bfloat_meat(Tensor tensor, int n_bits, int n_exp);
+Tensor quantize_adaptivfloat(Tensor tensor, int n_bits, int n_exp, int bias);
+Tensor quantize_adaptivfloat_meta(Tensor tensor, int n_bits, int n_exp, int bias);

@@ -368,70 +368,74 @@ class block_fp(_ieee754):
         # return bfloat_out
 
     def quant_bfloat_meta(self, float_arr, n_bits=8, n_exp=3):
-        n_mant = n_bits - 1 - n_exp
-        # 1. store sign value and do the following part as unsigned value
-        sign = torch.sign(float_arr)
-        float_arr = torch.abs(float_arr)
+        # C++
+        return num_sys.quantize_bfloat_meta(float_arr, n_bits, n_exp)
 
-        # 2. limits the range of output float point
-        min_exp = -2 ** (n_exp - 1) + 2
-        max_exp = 2 ** (n_exp - 1) - 1
-
-        min_value = 2 ** min_exp
-        max_value = (2 ** max_exp) * (2 - 2 ** (-n_mant))
-
-        # print ("min_value is {}, max_value is {}".format(min_value, max_value))
-        # Non denormal part
-        float_arr[float_arr < min_value] = 0
-
-        ## 2.2. reduce too large values to max value of output format
-        float_arr[float_arr > max_value] = max_value
-
-        # 3. get mant, exp (the format is different from IEEE float)
-        mant, exp = torch.frexp(float_arr)
-
-        # 3.1 change mant, and exp format to IEEE float format
-        # no effect for exponent of 0 outputs
-        mant = 2 * mant
-        exp = exp - 1
-
-        # print ("--before adjust-- exp is {}".format(exp))
-        # print ("--before adjust-- mant is {}".format(mant))
-
-        shared_exp = exp.max()
-
-        ##### ERROR INJECTION INTO META DATA
-        # get bit array of shared exp
-        exp_str = self.int_to_bitstream(shared_exp)
-
-        # flip a random bit
-        bit_ind = random.randint(0, self.exp_len - 1)
-        bit_arr = self.bit_flip(exp_str, bit_ind)
-
-        # get numerical value
-        shared_exp = self.bitstream_to_int(bit_arr)
-        # print("SHARED EXP: ", shared_exp)
-        ##### ERROR INJECTION INTO META DATA
-
-
-        exp_diff = shared_exp - exp
-        power_exp_diff = torch.exp2(exp_diff)
-        mant_adj = mant / power_exp_diff
-
-        exp_adj = torch.full(exp.shape, shared_exp, device=float_arr.device)
-
-        # exp should not be larger than max_exp
-        assert (shared_exp <= max_exp)
-        power_exp = torch.exp2(exp_adj)
-
-        ## 4. quantize mantissa
-        scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
-        mant_adj = ((mant_adj / scale).round()) * scale
-
-        bfloat_out = sign * power_exp * mant_adj
-        # print ("bfloat_out: ", bfloat_out)
-
-        return bfloat_out
+        # Python
+        # n_mant = n_bits - 1 - n_exp
+        # # 1. store sign value and do the following part as unsigned value
+        # sign = torch.sign(float_arr)
+        # float_arr = torch.abs(float_arr)
+        #
+        # # 2. limits the range of output float point
+        # min_exp = -2 ** (n_exp - 1) + 2
+        # max_exp = 2 ** (n_exp - 1) - 1
+        #
+        # min_value = 2 ** min_exp
+        # max_value = (2 ** max_exp) * (2 - 2 ** (-n_mant))
+        #
+        # # print ("min_value is {}, max_value is {}".format(min_value, max_value))
+        # # Non denormal part
+        # float_arr[float_arr < min_value] = 0
+        #
+        # ## 2.2. reduce too large values to max value of output format
+        # float_arr[float_arr > max_value] = max_value
+        #
+        # # 3. get mant, exp (the format is different from IEEE float)
+        # mant, exp = torch.frexp(float_arr)
+        #
+        # # 3.1 change mant, and exp format to IEEE float format
+        # # no effect for exponent of 0 outputs
+        # mant = 2 * mant
+        # exp = exp - 1
+        #
+        # # print ("--before adjust-- exp is {}".format(exp))
+        # # print ("--before adjust-- mant is {}".format(mant))
+        #
+        # shared_exp = exp.max()
+        #
+        # ##### ERROR INJECTION INTO META DATA
+        # # get bit array of shared exp
+        # exp_str = self.int_to_bitstream(shared_exp)
+        #
+        # # flip a random bit
+        # bit_ind = random.randint(0, self.exp_len - 1)
+        # bit_arr = self.bit_flip(exp_str, bit_ind)
+        #
+        # # get numerical value
+        # shared_exp = self.bitstream_to_int(bit_arr)
+        # # print("SHARED EXP: ", shared_exp)
+        # ##### ERROR INJECTION INTO META DATA
+        #
+        #
+        # exp_diff = shared_exp - exp
+        # power_exp_diff = torch.exp2(exp_diff)
+        # mant_adj = mant / power_exp_diff
+        #
+        # exp_adj = torch.full(exp.shape, shared_exp, device=float_arr.device)
+        #
+        # # exp should not be larger than max_exp
+        # assert (shared_exp <= max_exp)
+        # power_exp = torch.exp2(exp_adj)
+        #
+        # ## 4. quantize mantissa
+        # scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
+        # mant_adj = ((mant_adj / scale).round()) * scale
+        #
+        # bfloat_out = sign * power_exp * mant_adj
+        # # print ("bfloat_out: ", bfloat_out)
+        #
+        # return bfloat_out
 
 # ADAPTIVE FLOAT
 class adaptive_float(_ieee754):
@@ -500,52 +504,56 @@ class adaptive_float(_ieee754):
                                    n_bits=8,
                                    n_exp=4,
                                    bias=None):
-        n_mant = n_bits - 1 - n_exp
-        # 1. store sign value and do the following part as unsigned value
-        sign = torch.sign(float_arr)
-        float_arr = torch.abs(float_arr)
+        # C++
+        return num_sys.quantize_adaptivfloat_meta(float_arr, n_bits, n_exp, -1)
 
-        bias_temp = torch.frexp(float_arr.max())[1] - 1
-        bias_in = (2 ** (n_exp - 1) - 1) - bias_temp
-
-        # print("Before: ", bias_in)
-        # ERROR INJECTION INTO META =============
-        # get bit array of shared exp
-        exp_str = self.int_to_bitstream(bias_in)
-
-        # flip a random bit
-        bit_ind = random.randint(0, 7)
-        bit_arr = self.bit_flip(exp_str, bit_ind)
-
-        # get numerical value
-        bias = self.bitstream_to_int(bit_arr)
-        # print("After: ",bias)
-        # ERROR INJECTION INTO META =============
-
-        # 2. limits the range of output float point
-        min_exp = -2 ** (n_exp - 1) + 2 - bias
-        max_exp = 2 ** (n_exp - 1) - 1 - bias
-
-        min_value = 2. ** min_exp
-        max_value = (2. ** max_exp) * (2 - 2 ** (-n_mant))
-        # Non denormal part
-        float_arr[float_arr < min_value] = 0
-
-        ## 2.2. reduce too large values to max value of output format
-        float_arr[float_arr > max_value] = max_value
-
-        # 3. get mant, exp (the format is different from IEEE float)
-        mant, exp = torch.frexp(float_arr)
-
-        # 3.1 change mant, and exp format to IEEE float format
-        # no effect for exponent of 0 outputs
-        mant = 2 * mant
-        exp = exp - 1
-
-        power_exp = torch.exp2(exp)
-        ## 4. quantize mantissa
-        scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
-        mant = ((mant / scale).round()) * scale
-
-        float_out = sign * power_exp * mant
-        return float_out
+        # Python
+        # n_mant = n_bits - 1 - n_exp
+        # # 1. store sign value and do the following part as unsigned value
+        # sign = torch.sign(float_arr)
+        # float_arr = torch.abs(float_arr)
+        #
+        # bias_temp = torch.frexp(float_arr.max())[1] - 1
+        # bias_in = (2 ** (n_exp - 1) - 1) - bias_temp
+        #
+        # # print("Before: ", bias_in)
+        # # ERROR INJECTION INTO META =============
+        # # get bit array of shared exp
+        # exp_str = self.int_to_bitstream(bias_in)
+        #
+        # # flip a random bit
+        # bit_ind = random.randint(0, 7)
+        # bit_arr = self.bit_flip(exp_str, bit_ind)
+        #
+        # # get numerical value
+        # bias = self.bitstream_to_int(bit_arr)
+        # # print("After: ",bias)
+        # # ERROR INJECTION INTO META =============
+        #
+        # # 2. limits the range of output float point
+        # min_exp = -2 ** (n_exp - 1) + 2 - bias
+        # max_exp = 2 ** (n_exp - 1) - 1 - bias
+        #
+        # min_value = 2. ** min_exp
+        # max_value = (2. ** max_exp) * (2 - 2 ** (-n_mant))
+        # # Non denormal part
+        # float_arr[float_arr < min_value] = 0
+        #
+        # ## 2.2. reduce too large values to max value of output format
+        # float_arr[float_arr > max_value] = max_value
+        #
+        # # 3. get mant, exp (the format is different from IEEE float)
+        # mant, exp = torch.frexp(float_arr)
+        #
+        # # 3.1 change mant, and exp format to IEEE float format
+        # # no effect for exponent of 0 outputs
+        # mant = 2 * mant
+        # exp = exp - 1
+        #
+        # power_exp = torch.exp2(exp)
+        # ## 4. quantize mantissa
+        # scale = 2 ** (-n_mant)  ## e.g. 2 bit, scale = 0.25
+        # mant = ((mant / scale).round()) * scale
+        #
+        # float_out = sign * power_exp * mant
+        # return float_out
