@@ -2,6 +2,7 @@ import torch
 # import numpy as np
 import random
 from qtorch.quant import float_quantize, fixed_point_quantize, block_quantize
+import num_sys
 
 
 class _number_sys:
@@ -302,12 +303,12 @@ class block_fp(_ieee754):
         self.bit_width = bit_width
 
     def real_to_format_tensor(self, tensor):
-        return self.quant_bfloat(float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len)
+        return self.quant_bfloat(float_arr=tensor, n_bits=self.bit_width, n_exp=self.exp_len)
 
     def real_to_format_tensor_meta(self, tensor):
-        return self.quant_bfloat_meta(float_arr = tensor, n_bits = self.bit_width, n_exp = self.exp_len)
+        return self.quant_bfloat_meta(float_arr=tensor, n_bits=self.bit_width, n_exp=self.exp_len)
 
-    def quant_bfloat(self, float_arr, n_bits=8, n_exp=3):
+    def quant_bfloat_py(self, float_arr, n_bits, n_exp):
         n_mant = n_bits - 1 - n_exp
         # 1. store sign value and do the following part as unsigned value
         sign = torch.sign(float_arr)
@@ -362,7 +363,14 @@ class block_fp(_ieee754):
 
         return bfloat_out
 
-    def quant_bfloat_meta(self, float_arr, n_bits=8, n_exp=3):
+    def quant_bfloat(self, float_arr, n_bits=8, n_exp=3):
+        # C++
+        return num_sys.quant_bfloat(float_arr, n_bits, n_exp)
+
+        # Python
+        # return self.quant_bfloat_py(float_arr, n_bits, n_exp)
+
+    def quant_bfloat_meta_py(self, float_arr, n_bits=8, n_exp=3):
         n_mant = n_bits - 1 - n_exp
         # 1. store sign value and do the following part as unsigned value
         sign = torch.sign(float_arr)
@@ -428,6 +436,13 @@ class block_fp(_ieee754):
 
         return bfloat_out
 
+    def quant_bfloat_meta(self, float_arr, n_bits=8, n_exp=3):
+        # C++
+        return num_sys.quant_bfloat_meta(float_arr, n_bits, n_exp)
+
+        # Python
+        # return self.quant_bfloat_meta_py(float_arr, n_bits, n_exp)
+
 # ADAPTIVE FLOAT
 class adaptive_float(_ieee754):
     # 1 bit for sign + len(integer part) + len(frac part)
@@ -446,7 +461,7 @@ class adaptive_float(_ieee754):
                 float_arr=tensor, n_bits=self.bit_width, n_exp=self.exp_len, bias=self.exp_bias
         )
 
-    def quantize_adaptivfloat(self, float_arr, n_bits=8, n_exp=4, bias=None):
+    def quantize_adaptivfloat_py(self, float_arr, n_bits=8, n_exp=4, bias=None):
         n_mant = n_bits - 1 - n_exp
         # 1. store sign value and do the following part as unsigned value
         sign = torch.sign(float_arr)
@@ -483,7 +498,17 @@ class adaptive_float(_ieee754):
         float_out = sign * power_exp * mant
         return float_out
 
-    def quantize_adaptivfloat_meta(self, float_arr, n_bits=8, n_exp=4, bias=None):
+    def quantize_adaptivfloat(self, float_arr, n_bits=8, n_exp=4, bias=None):
+        # C++
+        if bias is None:
+            return num_sys.quantize_adaptivfloat(float_arr, n_bits, n_exp, -1)
+        else:
+            return num_sys.quantize_adaptivfloat(float_arr, n_bits, n_exp, bias)
+
+        # Python
+        # return self.quantize_adaptivfloat_py(float_arr, n_bits, n_exp, bias)
+
+    def quantize_adaptivfloat_meta_py(self, float_arr, n_bits=8, n_exp=4, bias=None):
         n_mant = n_bits - 1 - n_exp
         # 1. store sign value and do the following part as unsigned value
         sign = torch.sign(float_arr)
@@ -533,3 +558,10 @@ class adaptive_float(_ieee754):
 
         float_out = sign * power_exp * mant
         return float_out
+
+    def quantize_adaptivfloat_meta(self, float_arr, n_bits=8, n_exp=4, bias=None):
+        # C++
+        return num_sys.quantize_adaptivfloat_meta(float_arr, n_bits, n_exp, -1)
+
+        # Python
+        # return self.quantize_adaptivfloat_meta_py(float_arr, n_bits, n_exp, bias)
