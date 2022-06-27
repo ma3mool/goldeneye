@@ -2,7 +2,17 @@ import torch
 # import numpy as np
 import random
 from qtorch.quant import float_quantize, fixed_point_quantize, block_quantize
-import num_sys
+from torch.utils.cpp_extension import load
+import os
+
+current_path = os.path.dirname(os.path.realpath(__file__))
+num_sys = load(
+    name="num_sys",
+    sources=[
+        os.path.join(current_path, "num_sys.cpp"),
+        os.path.join(current_path, "num_sys_helper.cpp")
+    ]
+)
 
 
 class _number_sys:
