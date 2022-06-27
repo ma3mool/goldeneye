@@ -5,7 +5,7 @@
 
 using namespace at;
 
-Tensor quantize_bfloat(Tensor tensor, int n_bits, int n_exp)
+Tensor quant_bfloat(Tensor tensor, int n_bits, int n_exp)
 {
     int n_mant = n_bits - 1 - n_exp;
     // 1. store sign value and do the following part as unsigned value
@@ -53,7 +53,7 @@ Tensor quantize_bfloat(Tensor tensor, int n_bits, int n_exp)
     return bfloat_out;
 }
 
-Tensor quantize_bfloat_meta(Tensor tensor, int n_bits, int n_exp)
+Tensor quant_bfloat_meta(Tensor tensor, int n_bits, int n_exp)
 {
     int n_mant = n_bits - 1 - n_exp;
     // 1. store sign value and do the following part as unsigned value
@@ -217,8 +217,8 @@ Tensor quantize_adaptivfloat_meta(Tensor tensor, int n_bits, int n_exp, int bias
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("quantize_bfloat", &quantize_bfloat, "Quantize Block Float");
-    m.def("quantize_bfloat_meta", &quantize_bfloat_meta, "Quantize Block Float Meta");
+    m.def("quant_bfloat", &quant_bfloat, "Quantize Block Float");
+    m.def("quant_bfloat_meta", &quant_bfloat_meta, "Quantize Block Float Meta");
     m.def("quantize_adaptivfloat", &quantize_adaptivfloat, "Quantize AdaptivFloat");
     m.def("quantize_adaptivfloat_meta", &quantize_adaptivfloat_meta, "Quantize AdaptivFloat Meta");
 }
