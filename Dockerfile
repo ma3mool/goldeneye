@@ -7,4 +7,5 @@ RUN apt update && apt-get install -y \
 RUN pip3 install tqdm pytest torch qtorch numpy
 RUN git clone https://github.com/ma3mool/goldeneye.git
 RUN mkdir datasets
+ENV ML_DATASETS=/datasets/imagenet/
 
