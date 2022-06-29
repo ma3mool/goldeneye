@@ -44,7 +44,6 @@ class _number_sys:
 
     def single_bit_flip_in_format(self, num, bit_ind):
         bit_arr = self.real_to_format(num)
-        print(bit_arr)
         assert 0 <= bit_ind < len(bit_arr), "bit index out of range"
         bit_arr_corrupted = self.bit_flip(bit_arr, bit_ind)
 
@@ -149,7 +148,8 @@ class _ieee754(_number_sys):
         exp_str = "0" * self.exp_len
 
         if int_str.find("1") != -1:
-            ind = len(int_str) - 1 - int_str.index("1") # decimal shift
+            # decimal shift
+            ind = len(int_str) - 1 - int_str.index("1")
             int_str = int_str[len(int_str) - ind - 1:]
             exp_str = _number_sys.int_to_bin(ind + self.bias)
         else:
