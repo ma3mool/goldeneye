@@ -10,7 +10,7 @@
   <a href="#background">Background</a> •
   <a href="#usage">Usage</a> •
   <a href="#code">Code</a> •
-  <a href="#contributors">Acknowledgements</a> •
+  <a href="#acknowledgements">Acknowledgements</a> •
   <a href="#citation">Citation</a> •
   <a href="#license">License</a>
 </p>
