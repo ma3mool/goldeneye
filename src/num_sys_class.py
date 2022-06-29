@@ -4,7 +4,7 @@ import torch
 from torch.utils.cpp_extension import load
 from qtorch.quant import float_quantize, fixed_point_quantize, block_quantize
 
-import C++ code
+# import C++ code
 current_path = os.path.dirname(os.path.realpath(__file__))
 num_sys = load(
     name="num_sys",
@@ -145,18 +145,17 @@ class _ieee754(_number_sys):
         int_str = _number_sys.int_to_bin(int(num))
         frac_str = _number_sys.frac_to_bin(num - int(num))
 
-        ind = len(int_str) - 1 - int_str.index("1") if int_str.find("1") != -1 else 0
-
         # init values
         exp_str = "0" * self.exp_len
-        if int_str != "0":
-            dec_shift = ind  # decimal shift
+
+        if int_str.find("1") != -1:
+            ind = len(int_str) - 1 - int_str.index("1") # decimal shift
             int_str = int_str[len(int_str) - ind - 1:]
-            exp_str = _number_sys.int_to_bin(dec_shift + self.bias)
+            exp_str = _number_sys.int_to_bin(ind + self.bias)
         else:
             if frac_str.find("1") != -1:
                 dec_shift = frac_str.index("1") + 1
-                if dec_shift >= self.bias:
+                if dec_shift > self.bias:
                     frac_str = frac_str[self.bias:]
                 else:
                     exp_str = _number_sys.int_to_bin(-dec_shift + self.bias)
