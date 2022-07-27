@@ -6,6 +6,7 @@ import csv
 
 # sys.path.append("./pytorchfi")
 from pytorchfi import core
+
 # from num_sys_class import *
 
 
@@ -40,8 +41,16 @@ class goldeneye(core.fault_injection):
         self.precision = precision
 
         # for simulated number system
-        (self.num_sys, self.num_sys_name) = num_sys
-        # self.num_sys = num_sys
+
+        # TODO: Handle two options (1: uniform quantization so self.num_sys is one num_sys, 2: List of number systems)
+        self.num_sys = num_sys
+
+        if type(num_sys) is not list:
+            (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys
+        elif len(num_sys) == 1:
+            # List with only one numsys means we have uniform quantization across the network
+            (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys[0]
+
         self.signed = kwargs.get("signed", True)
 
         # for quantization
@@ -77,7 +86,7 @@ class goldeneye(core.fault_injection):
     def hook1_num_sys_inj1(self, in_num, bit_pos, to_inj):
         # Transform to num sys and bit flip if inj_order == 1
         flip_val = to_inj and (self.inj_order == 1 or not self.quant)
-        out_num = self.num_sys.convert_numsys_flip(in_num, bit_pos, flip=flip_val)
+        out_num = self.cur_num_sys.convert_numsys_flip(in_num, bit_pos, flip=flip_val)
         return out_num
 
     def hook2_quant(self, in_num, max_value):
@@ -142,7 +151,7 @@ class goldeneye(core.fault_injection):
 
     def hook5_num_sys_inj3(self, in_num, bit_pos, to_inj):
         # TODO only enter here if inj_order is 3. But check logic if this is the only time! Min: set flip = False
-        return self.num_sys.convert_numsys_flip(
+        return self.cur_num_sys.convert_numsys_flip(
             in_num, bit_pos, flip=(to_inj and (self.quant and self.inj_order == 6))
         )
 
@@ -203,13 +212,27 @@ class goldeneye(core.fault_injection):
         S = 2.0 / R
 
         if getMode == "FP32":
-            return 0.5 * R * torch.min(torch.pow(torch.tensor(2.0).cuda(), 1.0 - B) * torch.round(
-                X * S * torch.pow(torch.tensor(2.0).cuda(), B - 1.0)),
-                                       2.0 - torch.pow(torch.tensor(2.0).cuda(), 1.0 - B))
+            return (
+                0.5
+                * R
+                * torch.min(
+                    torch.pow(torch.tensor(2.0).cuda(), 1.0 - B)
+                    * torch.round(X * S * torch.pow(torch.tensor(2.0).cuda(), B - 1.0)),
+                    2.0 - torch.pow(torch.tensor(2.0).cuda(), 1.0 - B),
+                )
+            )
         elif getMode == "FP16":
-            return 0.5 * R * torch.min(torch.pow(torch.tensor(2.0).cuda().half(), 1.0 - B) * torch.round(
-                X * S * torch.pow(torch.tensor(2.0).cuda().half(), B - 1.0)),
-                                       2.0 - torch.pow(torch.tensor(2.0).cuda().half(), 1.0 - B))
+            return (
+                0.5
+                * R
+                * torch.min(
+                    torch.pow(torch.tensor(2.0).cuda().half(), 1.0 - B)
+                    * torch.round(
+                        X * S * torch.pow(torch.tensor(2.0).cuda().half(), B - 1.0)
+                    ),
+                    2.0 - torch.pow(torch.tensor(2.0).cuda().half(), 1.0 - B),
+                )
+            )
 
     # operates on a single value
     def _flip_bit_goldeneye(self, orig_value, max_value, bit_pos=-1, to_inj=False):
@@ -233,25 +256,29 @@ class goldeneye(core.fault_injection):
                     return torch.tensor(max_value)
 
         # Quantization (num_sys to int8)
-        if self.num_sys_name == "INT":
+        if self.cur_num_sys_name == "INT":
             print("QUANTIZATION!")
             out_num = self.hook2_quant(out_num, max_value)
-            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
+            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)):
+                return torch.tensor(out_num)
 
             # Bit flip if inj_order == 2
             if to_inj == 1:
                 out_num = self.hook3_inj2(out_num, bit_pos)
-            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
+            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)):
+                return torch.tensor(out_num)
 
             # Dequant
             out_num = self.hook4_dequant(out_num, max_value)
-            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
+            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)):
+                return torch.tensor(out_num)
 
         # Num sys conversion + flip if inj_order = 3
-        if to_inj == 6: # TODO Future datapath bitflip
+        if to_inj == 6:  # TODO Future datapath bitflip
             print("HOOK 6!")
             out_num = self.hook5_num_sys_inj3(out_num, bit_pos, to_inj)
-            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)): return torch.tensor(out_num)
+            if torch.isnan(torch.tensor(out_num)) or torch.isinf(torch.tensor(out_num)):
+                return torch.tensor(out_num)
 
         # return torch.tensor(out_num, dtype=save_type)
         return torch.tensor(out_num)
@@ -259,6 +286,13 @@ class goldeneye(core.fault_injection):
     def apply_goldeneye_transformation(self, module, input, output):
         corrupt_layer_set = self.get_corrupt_layer()
         range_max = self.get_layer_max(self.get_current_layer())
+
+        # Setting current num-sys for mixed-precision
+        if type(self.num_sys) is list:
+            (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys[
+                self.get_current_layer()
+            ]
+
         logging.info("curr_conv", self.get_current_layer())
         logging.info("range_max", range_max)
 
@@ -282,10 +316,10 @@ class goldeneye(core.fault_injection):
                     self.corrupt_dim3[i],
                 )
 
-                if self.num_sys_name == "block_fp" and self.inj_order == 1:
+                if self.cur_num_sys_name == "block_fp" and self.inj_order == 1:
                     # only select mantissa or sign bit
-                    rand_bit = random.randint(0, self.num_sys.mant_len)
-                    if rand_bit == self.num_sys.mant_len:
+                    rand_bit = random.randint(0, self.cur_num_sys.mant_len)
+                    if rand_bit == self.cur_num_sys.mant_len:
                         rand_bit = self.bits - 1
                 else:
                     rand_bit = self.bits - 1 - random.randint(0, self.bits - 1)
@@ -313,8 +347,10 @@ class goldeneye(core.fault_injection):
         # tensor conversions (FP32 -> Num Sys)
         # number system emulation (with meta injection support)
         if self.quant is False:
-            output[:] = self.num_sys.convert_numsys_tensor(output, meta_inj=meta_inj_en)
-            # output = self.num_sys.convert_numsys_tensor(output, meta_inj=meta_inj_en)
+            output[:] = self.cur_num_sys.convert_numsys_tensor(
+                output, meta_inj=meta_inj_en
+            )
+            # output = self.cur_num_sys.convert_numsys_tensor(output, meta_inj=meta_inj_en)
             torch.cuda.empty_cache()
         else:
             # quantize (scale and quant NumSys)
@@ -327,8 +363,6 @@ class goldeneye(core.fault_injection):
         self.updateLayer()
         if self.get_current_layer() >= self.get_total_layers():
             self.reset_current_layer()
-
-
 
         # baseDevice = output.get_device()
         # TO OPTIMIZE (??). Must move to CPU, then back to_device
