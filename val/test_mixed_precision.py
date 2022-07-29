@@ -75,7 +75,7 @@ def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
     if name == "fp32":
         return num_fp32(), name
     if name == "INT":
-        assert getQuantize_en()
+        # assert getQuantize_en()
         return num_fp32(), name
     elif name == "fp16":
         return num_fp16(), name
