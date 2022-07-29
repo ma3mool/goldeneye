@@ -1,5 +1,6 @@
 from goldeneye.src.goldeneye import goldeneye
 from ..pytorchfi.test.unit_tests.util_test import helper_setUp_CIFAR10
+from ..src.num_sys_class import *
 
 # from goldeneye.src.util import *
 from torch import nn
@@ -64,6 +65,40 @@ class TestMixedPrecision:
 
         print("Testing fake mixed: ")
         print(inf_model1(self.images))
+
+
+#################################################################
+################### HELPER METHODS FOR NUMSYS ###################
+#################################################################
+def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
+    # common number systems in PyTorch
+    if name == "fp32":
+        return num_fp32(), name
+    if name == "INT":
+        assert getQuantize_en()
+        return num_fp32(), name
+    elif name == "fp16":
+        return num_fp16(), name
+    elif name == "bfloat16":
+        return num_bfloat16(), name
+
+    # generic number systems in PyTorch
+    elif name == "fp_n":
+        return num_float_n(exp_len=radix_up, mant_len=radix_down), name
+    elif name == "fxp_n":
+        return num_fixed_pt(int_len=radix_up, frac_len=radix_down), name
+    elif name == "block_fp":
+        return block_fp(bit_width=bits, exp_len=radix_up, mant_len=radix_down), name
+    elif name == "adaptive_fp":
+        return (
+            adaptive_float(
+                bit_width=bits, exp_len=radix_up, mant_len=radix_down, exp_bias=bias
+            ),
+            name,
+        )
+
+    else:
+        sys.exit("Number format not supported")
 
 
 if __name__ == "__main__":
