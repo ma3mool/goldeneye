@@ -134,3 +134,4 @@ scripts/log/
 src/data
 src/othermodels/*.py
 src/othermodels/state_dicts/*.pt
+goldeneye.sif
