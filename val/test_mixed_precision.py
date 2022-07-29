@@ -1,6 +1,6 @@
-from src.goldeneye import goldeneye
-from src.pytorchfi.test.unit_tests.util_test import helper_setUp_CIFAR10
-from src.util import *
+from goldeneye.src.goldeneye import goldeneye
+from goldeneye.pytorchfi.test.unit_tests.util_test import helper_setUp_CIFAR10
+from goldeneye.src.util import *
 from torch import nn
 import timm
 
