@@ -4,12 +4,25 @@ from ..pytorchfi.test.unit_tests.util_test import helper_setUp_CIFAR10
 # from goldeneye.src.util import *
 from torch import nn
 import timm
+import pytest
 
 
 class TestMixedPrecision:
     """
     Testing mixed-precision.
     """
+
+    def pytest_addoption(parser):
+        parser.addoption(
+            "--num-sys-name",
+            action="store",
+            default="fp32",
+            help="provide a num sys arg to run the test with",
+        )
+
+    @pytest.fixture
+    def cmdopt(request):
+        return request.config.getoption("--num-sys-name")
 
     def setup_class(self):
         # Prepare dataset and model
