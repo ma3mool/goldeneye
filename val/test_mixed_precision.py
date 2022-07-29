@@ -26,9 +26,10 @@ class TestMixedPrecision:
 
         self.images, self.labels = self.dataiter.next()
 
-    def test_uniform(self, num_sys_name):
+    def test_uniform(self, params):
 
         # Prepare goldeneye models for inference
+        self.num_sys_name = params["num_sys_name"]
 
         gmodel1 = goldeneye(
             self.model1,
