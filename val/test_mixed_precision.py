@@ -39,7 +39,7 @@ class TestMixedPrecision:
             quant=True,
             layer_max=[],
             inj_order=0,
-            num_sys=getNumSysName(num_sys_name),
+            num_sys=getNumSysName(self.num_sys_name),
         )
 
         inf_model1 = gmodel1.declare_neuron_fi(
@@ -53,7 +53,7 @@ class TestMixedPrecision:
             quant=True,
             layer_max=[],
             inj_order=0,
-            num_sys=getNumSysName(num_sys_name),
+            num_sys=getNumSysName(self.num_sys_name),
         )
 
         inf_model2 = gmodel1.declare_neuron_fi(
