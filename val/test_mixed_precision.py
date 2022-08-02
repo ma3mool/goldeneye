@@ -1,6 +1,7 @@
 from goldeneye.src.goldeneye import goldeneye
 from ..pytorchfi.test.unit_tests.util_test import helper_setUp_CIFAR10
 from ..src.num_sys_class import *
+import copy
 
 # from goldeneye.src.util import *
 from torch import nn
@@ -22,7 +23,7 @@ class TestMixedPrecision:
 
         self.model1, self.dataset = helper_setUp_CIFAR10(self.BATCH_SIZE, self.WORKERS)
 
-        self.model2 = self.model1
+        self.model2 = copy.deepcopy(self.model1)
         self.dataiter = iter(self.dataset)
 
         self.images, self.labels = self.dataiter.next()
@@ -61,10 +62,10 @@ class TestMixedPrecision:
         )
 
         print("Testing uniform: ")
-        print(inf_model2(self.images))
+        print(inf_model2(self.images[0]))
 
         print("Testing fake mixed: ")
-        print(inf_model1(self.images))
+        print(inf_model1(self.images[0]))
 
 
 #################################################################
