@@ -285,20 +285,20 @@ class goldeneye(core.fault_injection):
 
     def apply_goldeneye_transformation(self, module, input, output):
         corrupt_layer_set = self.get_corrupt_layer()
-        range_max = self.get_layer_max(self.get_current_layer())
+        range_max = self.get_layer_max(self.get_curr_layer())
 
         # Setting current num-sys for mixed-precision
         if type(self.num_sys) is list:
             (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys[
-                self.get_current_layer()
+                self.get_curr_layer()
             ]
 
-        logging.info("curr_conv", self.get_current_layer())
+        logging.info("curr_conv", self.get_curr_layer())
         logging.info("range_max", range_max)
 
         inj_list = list(
             filter(
-                lambda x: corrupt_layer_set[x] == self.get_current_layer(),
+                lambda x: corrupt_layer_set[x] == self.get_curr_layer(),
                 range(len(corrupt_layer_set)),
             )
         )
@@ -338,7 +338,7 @@ class goldeneye(core.fault_injection):
                 )
 
         # meta injections (tensor level)
-        if self.get_current_layer() in corrupt_layer_set and self.inj_order == 2:
+        if self.get_curr_layer() in corrupt_layer_set and self.inj_order == 2:
             # print("META INJECTION")
             meta_inj_en = True
         else:
@@ -361,7 +361,7 @@ class goldeneye(core.fault_injection):
 
         # always do this before proceeding
         self.updateLayer()
-        if self.get_current_layer() >= self.get_total_layers():
+        if self.get_curr_layer() >= self.get_total_layers():
             self.reset_current_layer()
 
         # baseDevice = output.get_device()
@@ -376,8 +376,8 @@ class goldeneye(core.fault_injection):
         # )
 
         # apply is too slow, we replaced it by tensor-operations-based functions
-        # print("Layer: ", self.get_current_layer(), ", Shape: ", output.dim(), ", Size: ", output.size())
-        # print("Layer: ", self.get_current_layer(), "Value: ", output[-1][24][12][12])
+        # print("Layer: ", self.get_curr_layer(), ", Shape: ", output.dim(), ", Size: ", output.size())
+        # print("Layer: ", self.get_curr_layer(), "Value: ", output[-1][24][12][12])
         # print("New Value:", output[-1][24][12][12])
 
         # if self.use_cuda:
