@@ -22,6 +22,7 @@ class TestMixedPrecision:
         self.USE_GPU = False
 
         self.model1, self.dataset = helper_setUp_CIFAR10(self.BATCH_SIZE, self.WORKERS)
+        self.model1.eval()
 
         self.model2 = copy.deepcopy(self.model1)
         self.dataiter = iter(self.dataset)
@@ -62,10 +63,10 @@ class TestMixedPrecision:
         )
 
         print("Testing uniform: ")
-        print(inf_model2(self.images[0]))
+        print(inf_model2(self.images))
 
         print("Testing fake mixed: ")
-        print(inf_model1(self.images[0]))
+        print(inf_model1(self.images))
 
 
 #################################################################
