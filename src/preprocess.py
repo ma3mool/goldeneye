@@ -1,13 +1,24 @@
-from util import *
+from .util import *
 import torch.nn as nn
 from tqdm import tqdm
 
 
 activations = []
+
+
 def save_activations(module, input, output):
     activations.append(output)
 
-def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cuda_en=True, debug=False, verbose=False):
+
+def gather_min_max_per_layer(
+    model,
+    data_iter,
+    batch_size,
+    precision="FP16",
+    cuda_en=True,
+    debug=False,
+    verbose=False,
+):
     global activations
     layer_max = torch.Tensor([])
     layer_min = torch.Tensor([])
@@ -18,7 +29,6 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
     if precision == "FP16":
         layer_max = layer_max.half()
         layer_min = layer_min.half()
-
 
     # register forward hook to the model
     handles = []
@@ -75,18 +85,26 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
 
     return layer_min, layer_max, actual_max
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
 
     # read in cmd line args
     check_args(sys.argv[1:])
-    if getDebug(): printArgs()
+    if getDebug():
+        printArgs()
 
     # common variables
     name = getDNN() + "_" + getDataset()
     out_path = getOutputDir() + "/networkRanges/" + name + "/"
 
     # load data and model
-    dataiter = load_dataset(getDataset(), getBatchsize(), workers = getWorkers(), training=True, include_id=False)
+    dataiter = load_dataset(
+        getDataset(),
+        getBatchsize(),
+        workers=getWorkers(),
+        training=True,
+        include_id=False,
+    )
     model = getNetwork(getDNN(), getDataset())
     model.eval()
     torch.no_grad()
