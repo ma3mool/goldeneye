@@ -118,6 +118,13 @@ def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
 # here for the moment
 # TODO: fix this
 #################################################################
+activations = []
+
+
+def save_activations(module, input, output):
+    activations.append(output)
+
+
 def gather_min_max_per_layer(
     model,
     data_iter,
