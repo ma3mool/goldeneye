@@ -1,7 +1,7 @@
 from goldeneye.src.goldeneye import goldeneye
 from ..pytorchfi.test.unit_tests.util_test import helper_setUp_CIFAR10
 from ..src.num_sys_class import *
-from ..src.preprocess import gather_min_max_per_layer
+from tqdm import tqdm
 import copy
 
 # from goldeneye.src.util import *
@@ -111,6 +111,87 @@ def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
 
     else:
         sys.exit("Number format not supported")
+
+
+#################################################################
+# From preprocess.py, had an error importing util so copying it
+# here for the moment
+# TODO: fix this
+#################################################################
+def gather_min_max_per_layer(
+    model,
+    data_iter,
+    batch_size,
+    precision="FP16",
+    cuda_en=True,
+    debug=False,
+    verbose=False,
+):
+    global activations
+    layer_max = torch.Tensor([])
+    layer_min = torch.Tensor([])
+
+    if cuda_en:
+        layer_max = layer_max.cuda()
+        layer_min = layer_min.cuda()
+    if precision == "FP16":
+        layer_max = layer_max.half()
+        layer_min = layer_min.half()
+
+    # register forward hook to the model
+    handles = []
+    for param in model.modules():
+        if isinstance(param, nn.Conv2d) or isinstance(param, nn.Linear):
+            handles.append(param.register_forward_hook(save_activations))
+
+    # main loops to gather ranges
+    processed_elements = 0
+    batch_num = 0
+
+    for input_data in tqdm(data_iter):
+
+        # prepare the next batch for inference
+        images, labels = input_data
+        if cuda_en:
+            images = images.cuda()
+            labels = labels.cuda()
+        if precision == "FP16":
+            images = images.half()
+
+        activations = []  # reset before every inference
+        model(images)  # run an inference
+
+        # Range gathering: iterate through each layer
+
+        min_vals = (
+            torch.Tensor(list(map(lambda layer: layer.min().item(), activations)))
+            .cuda()
+            .half()
+        )
+        max_vals = (
+            torch.Tensor(list(map(lambda layer: layer.max().item(), activations)))
+            .cuda()
+            .half()
+        )
+        if batch_num == 0:
+            layer_max = max_vals
+            layer_min = min_vals
+        else:
+            layer_max = torch.max(layer_max, max_vals)
+            layer_min = torch.min(layer_min, min_vals)
+
+        processed_elements += len(labels)
+        batch_num += 1
+        torch.cuda.empty_cache()
+
+    # remove hooks
+    for i in range(len(handles)):
+        handles[i].remove()
+    del activations
+
+    actual_max = torch.max(torch.abs(layer_min), torch.abs(layer_max))
+
+    return layer_min, layer_max, actual_max
 
 
 if __name__ == "__main__":
