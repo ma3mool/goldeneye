@@ -37,6 +37,7 @@ class TestMixedPrecision:
         gmodel1 = goldeneye(
             self.model1,
             self.BATCH_SIZE,
+            input_shape=[3, self.img_size, self.img_size],
             use_cuda=self.USE_GPU,
             quant=True,
             inj_order=0,
@@ -50,6 +51,7 @@ class TestMixedPrecision:
         gmodel2 = goldeneye(
             self.model2,
             self.BATCH_SIZE,
+            input_shape=[3, self.img_size, self.img_size],
             use_cuda=self.USE_GPU,
             quant=True,
             inj_order=0,
