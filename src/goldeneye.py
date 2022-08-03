@@ -5,7 +5,7 @@ import torch
 import csv
 
 # sys.path.append("./pytorchfi")
-from ..pytorchfi.pytorchfi import core
+from pytorchfi import core
 
 # from num_sys_class import *
 
