@@ -1,6 +1,7 @@
 from goldeneye.src.goldeneye import goldeneye
 from ..pytorchfi.test.unit_tests.util_test import helper_setUp_CIFAR10
 from ..src.num_sys_class import *
+from ..src.preprocess import gather_min_max_per_layer
 import copy
 
 # from goldeneye.src.util import *
@@ -29,6 +30,13 @@ class TestMixedPrecision:
 
         self.images, self.labels = self.dataiter.next()
 
+        # Preprocessing to get layer_max
+        self.layer_min, self.layer_max, self.actual_max = gather_min_max_per_layer(
+            self.model1,
+            self.dataiter,
+            self.BATCH_SIZE,
+        )
+
     def test_uniform(self, params):
 
         # Prepare goldeneye models for inference
@@ -39,6 +47,7 @@ class TestMixedPrecision:
             self.BATCH_SIZE,
             input_shape=[3, self.img_size, self.img_size],
             use_cuda=self.USE_GPU,
+            layer_max=self.layer_max,
             quant=True,
             inj_order=0,
             num_sys=getNumSysName(self.num_sys_name),
@@ -53,6 +62,7 @@ class TestMixedPrecision:
             self.BATCH_SIZE,
             input_shape=[3, self.img_size, self.img_size],
             use_cuda=self.USE_GPU,
+            layer_max=self.layer_max,
             quant=True,
             inj_order=0,
             num_sys=getNumSysName(self.num_sys_name),
