@@ -39,7 +39,6 @@ class TestMixedPrecision:
             self.BATCH_SIZE,
             use_cuda=self.USE_GPU,
             quant=True,
-            layer_max=[],
             inj_order=0,
             num_sys=getNumSysName(self.num_sys_name),
         )
@@ -53,7 +52,6 @@ class TestMixedPrecision:
             self.BATCH_SIZE,
             use_cuda=self.USE_GPU,
             quant=True,
-            layer_max=[],
             inj_order=0,
             num_sys=getNumSysName(self.num_sys_name),
         )
