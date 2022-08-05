@@ -50,7 +50,7 @@ class TestMixedPrecision:
             input_shape=[3, self.img_size, self.img_size],
             use_cuda=self.USE_GPU,
             layer_max=self.layer_max,
-            quant=True,
+            quant=False,
             inj_order=0,
             num_sys=getNumSysName(self.num_sys_name),
         )
@@ -65,7 +65,7 @@ class TestMixedPrecision:
             input_shape=[3, self.img_size, self.img_size],
             use_cuda=self.USE_GPU,
             layer_max=self.layer_max,
-            quant=True,
+            quant=False,
             inj_order=0,
             num_sys=getNumSysName(self.num_sys_name),
         )
