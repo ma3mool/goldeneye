@@ -362,7 +362,7 @@ class goldeneye(core.fault_injection):
         # always do this before proceeding
         self.updateLayer()
         if self.get_curr_layer() >= self.get_total_layers():
-            self.reset_current_layer()
+            self.reset_curr_layer()
 
         # baseDevice = output.get_device()
         # TO OPTIMIZE (??). Must move to CPU, then back to_device
