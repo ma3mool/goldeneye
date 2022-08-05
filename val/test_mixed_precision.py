@@ -26,11 +26,11 @@ class TestMixedPrecision:
         self.model1.eval()
 
         self.model2 = copy.deepcopy(self.model1)
-        self.dataiter = iter(self.dataset.float())
+        self.dataiter = iter(self.dataset)
 
         self.images, self.labels = self.dataiter.next()
 
-        # self.images = self.images.float()
+        self.images = self.images.float()
 
         # Preprocessing to get layer_max
         self.layer_min, self.layer_max, self.actual_max = gather_min_max_per_layer(
