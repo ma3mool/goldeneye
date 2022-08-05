@@ -67,7 +67,7 @@ class TestMixedPrecision:
             layer_max=self.layer_max,
             quant=False,
             inj_order=0,
-            num_sys=getNumSysName(self.num_sys_name),
+            num_sys=[getNumSysName(self.num_sys_name)] * 14,
         )
 
         inf_model2 = gmodel1.declare_neuron_fi(
@@ -75,10 +75,10 @@ class TestMixedPrecision:
         )
 
         print("Testing uniform: ")
-        print(inf_model2(self.images))
+        print(inf_model1(self.images))
 
         print("Testing fake mixed: ")
-        print(inf_model1(self.images))
+        print(inf_model2(self.images))
 
 
 #################################################################
