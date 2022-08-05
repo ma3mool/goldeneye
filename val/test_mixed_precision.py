@@ -20,7 +20,7 @@ class TestMixedPrecision:
         self.WORKERS = 1
         self.channels = 3
         self.img_size = 32
-        self.USE_GPU = False
+        self.USE_GPU = True
 
         self.model1, self.dataset = helper_setUp_CIFAR10(self.BATCH_SIZE, self.WORKERS)
         self.model1.eval()
@@ -73,7 +73,7 @@ class TestMixedPrecision:
         )
 
         if self.num_sys_name == "fp16":
-            self.images.half()
+            self.images = self.images.cuda.half()
 
         print("Testing uniform: ")
         print(inf_model2(self.images))
