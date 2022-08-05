@@ -29,9 +29,6 @@ class TestMixedPrecision:
         self.dataiter = iter(self.dataset)
 
         self.images, self.labels = self.dataiter.next()
-        self.images = self.images.to(
-            torch.HalfTensor if self.USE_GPU else torch.cuda.HalfTensor
-        )
 
         # Preprocessing to get layer_max
         self.layer_min, self.layer_max, self.actual_max = gather_min_max_per_layer(
@@ -74,6 +71,9 @@ class TestMixedPrecision:
         inf_model2 = gmodel1.declare_neuron_fi(
             function=gmodel1.apply_goldeneye_transformation
         )
+
+        if self.num_sys_name == "fp16":
+            self.images.half()
 
         print("Testing uniform: ")
         print(inf_model2(self.images))
