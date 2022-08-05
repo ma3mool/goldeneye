@@ -30,13 +30,9 @@ class TestMixedPrecision:
 
         self.images, self.labels = self.dataiter.next()
 
-        self.images = self.images.float()
-
         # Preprocessing to get layer_max
         self.layer_min, self.layer_max, self.actual_max = gather_min_max_per_layer(
-            self.model1,
-            self.dataiter,
-            self.BATCH_SIZE,
+            self.model1, self.dataiter, self.BATCH_SIZE, precision="fp32"
         )
 
     def test_uniform(self, params):
