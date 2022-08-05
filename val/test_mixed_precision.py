@@ -32,7 +32,11 @@ class TestMixedPrecision:
 
         # Preprocessing to get layer_max
         self.layer_min, self.layer_max, self.actual_max = gather_min_max_per_layer(
-            self.model1, self.dataiter, self.BATCH_SIZE, precision="fp32"
+            self.model1,
+            self.dataiter,
+            self.BATCH_SIZE,
+            precision="fp32",
+            cuda_en=self.USE_GPU,
         )
 
     def test_uniform(self, params):
