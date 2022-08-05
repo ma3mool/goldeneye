@@ -29,7 +29,8 @@ class TestMixedPrecision:
         self.dataiter = iter(self.dataset)
 
         self.images, self.labels = self.dataiter.next()
-        self.images = self.images.float()
+
+        self.images = self.images.to("fp16")
 
         # Preprocessing to get layer_max
         self.layer_min, self.layer_max, self.actual_max = gather_min_max_per_layer(
