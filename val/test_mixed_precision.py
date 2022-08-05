@@ -20,7 +20,7 @@ class TestMixedPrecision:
         self.WORKERS = 1
         self.channels = 3
         self.img_size = 32
-        self.USE_GPU = True
+        self.USE_GPU = False
 
         self.model1, self.dataset = helper_setUp_CIFAR10(self.BATCH_SIZE, self.WORKERS)
         self.model1.eval()
@@ -29,6 +29,7 @@ class TestMixedPrecision:
         self.dataiter = iter(self.dataset)
 
         self.images, self.labels = self.dataiter.next()
+        self.images = self.images.FloatTensor()
 
         # Preprocessing to get layer_max
         self.layer_min, self.layer_max, self.actual_max = gather_min_max_per_layer(
@@ -71,9 +72,6 @@ class TestMixedPrecision:
         inf_model2 = gmodel1.declare_neuron_fi(
             function=gmodel1.apply_goldeneye_transformation
         )
-
-        if self.num_sys_name == "fp16":
-            self.images = self.images.cuda.half()
 
         print("Testing uniform: ")
         print(inf_model2(self.images))
