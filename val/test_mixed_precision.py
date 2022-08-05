@@ -29,6 +29,9 @@ class TestMixedPrecision:
         self.dataiter = iter(self.dataset)
 
         self.images, self.labels = self.dataiter.next()
+        self.images = self.images.to(
+            torch.HalfTensor if self.USE_GPU else torch.cuda.HalfTensor
+        )
 
         # Preprocessing to get layer_max
         self.layer_min, self.layer_max, self.actual_max = gather_min_max_per_layer(
