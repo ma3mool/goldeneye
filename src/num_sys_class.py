@@ -1,3 +1,4 @@
+from nis import match
 import os
 import random
 import torch
@@ -568,3 +569,75 @@ class adaptive_float(_ieee754):
 
         # Python
         # return self.quantize_adaptivfloat_meta_py(float_arr, n_bits, n_exp, bias)
+
+#################################################################
+################### HELPER METHODS FOR NUMSYS ###################
+#################################################################
+def string_to_numsys(name, bits=16, radix_up=5, radix_down=10, bias=None):
+    # common number systems in PyTorch
+    if name == "fp32":
+        return num_fp32(), name
+    if name == "INT":
+        # assert getQuantize_en()
+        return num_fp32(), name
+    elif name == "fp16":
+        return num_fp16(), name
+    elif name == "bfloat16":
+        return num_bfloat16(), name
+
+    # generic number systems in PyTorch
+    elif name == "fp_n":
+        return num_float_n(exp_len=radix_up, mant_len=radix_down), name
+    elif name == "fxp_n":
+        return num_fixed_pt(int_len=radix_up, frac_len=radix_down), name
+    elif name == "block_fp":
+        return block_fp(bit_width=bits, exp_len=radix_up, mant_len=radix_down), name
+    elif name == "adaptive_fp":
+        return (
+            adaptive_float(
+                bit_width=bits, exp_len=radix_up, mant_len=radix_down, exp_bias=bias
+            ),
+            name,
+        )
+
+    else:
+        sys.exit("Config format error: Number format not supported")
+
+def config_to_numsys(config):
+    # check config format is correct
+    assert(type(config) is tuple)
+
+    match config[0]:
+        case "fp32":
+            return num_fp32(), "fp32"
+        case "INT":
+            # assert getQuantize_en()
+            return num_fp32(), "INT"
+        case "fp16":
+            return num_fp16(), "fp16"
+        case "bfloat16":
+            return num_bfloat16(), "bfloat16"
+        case "fp":
+            return num_float_n(exp_len=config[1], mant_len=config[2]), "fp_n"
+        case "fxp":
+            return num_fixed_pt(int_len=config[1], frac_len=config[2]), "fxp_n"
+        case "block_fp":
+            return block_fp(bit_width=config[1], exp_len=config[2], mant_len=config[3]), "block_fp"
+        case "adaptive_fp":
+            return adaptive_float(bit_width=config[1], exp_len=config[2], mant_len=config[3], exp_bias=config[4]), "adaptive_fp"
+        case _:
+            raise Exception("Config format error: Number format not supported")
+
+def to_numsys_list(lst, conversion_func):
+    numsys_list = []
+    for config in lst:
+        numsys_list.append(conversion_func(config))
+    return numsys_list
+
+def string_list_to_numsys_list(config_list):
+    to_numsys_list(config_list, string_to_numsys)
+
+def config_list_to_numsys_list(config_list):
+    to_numsys_list(config_list, config_to_numsys)
+    
+

@@ -1,4 +1,5 @@
 import random, sys
+import string
 import logging
 import numpy as np
 import torch
@@ -6,6 +7,7 @@ import csv
 
 # sys.path.append("./pytorchfi")
 from ..pytorchfi.pytorchfi import core
+from .num_sys_class import *
 
 # from num_sys_class import *
 
@@ -42,14 +44,8 @@ class goldeneye(core.fault_injection):
 
         # for simulated number system
 
-        # TODO: Handle two options (1: uniform quantization so self.num_sys is one num_sys, 2: List of number systems)
-        self.num_sys = num_sys
-
-        if type(num_sys) is not list:
-            (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys
-        elif len(num_sys) == 1:
-            # List with only one numsys means we have uniform quantization across the network
-            (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys[0]
+        # Processing input
+        self.process_numsys_input(num_sys)
 
         self.signed = kwargs.get("signed", True)
 
@@ -60,6 +56,24 @@ class goldeneye(core.fault_injection):
 
         # the order of injecting within the goldeneye transformation
         # 0 -> no injection, 1 -> between quantization and de-quantization, 2 -> after converting to the number system, 3 -> after dequantization, 4 -> after converting num sys
+
+    def process_num_sys_input(self, num_sys):
+        # Options:
+        # 1. num_sys is a string
+        # 2. num_sys is a tuple (numsys_obj, name)
+        # 3. num_sys is a list of configurations or strings(eg. [("fp", 8, 23), "bfloat16",("fxp", 5, 10)])
+
+        if type(num_sys) is str:
+            (self.cur_num_sys, self.cur_num_sys_name) = string_to_numsys(self.num_sys)
+            self.num_sys = num_sys
+        elif type(num_sys) is tuple:  # i.e one numsys_obj, name tuple
+            (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys
+            self.num_sys = num_sys
+        else:  # type(num_sys) is list:
+            assert type(num_sys) is list
+
+            self.num_sys = self.to_numsys_list(num_sys)
+            (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys[0]
 
     def set_layer_max(self, data):
         self.LayerRanges = data

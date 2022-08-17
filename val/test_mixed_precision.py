@@ -39,7 +39,7 @@ class TestMixedPrecision:
             cuda_en=self.USE_GPU,
         )
 
-    def test_uniform(self, params):
+    def test_uniform_string_and_list_of_strings(self, params):
 
         # Prepare goldeneye models for inference
         self.num_sys_name = params["num_sys_name"]
@@ -48,11 +48,11 @@ class TestMixedPrecision:
             self.model1,
             self.BATCH_SIZE,
             input_shape=[3, self.img_size, self.img_size],
+            num_sys=self.num_sys_name,
+            quant=False,
             use_cuda=self.USE_GPU,
             layer_max=self.layer_max,
-            quant=False,
             inj_order=0,
-            num_sys=getNumSysName(self.num_sys_name),
         )
 
         inf_model1 = gmodel1.declare_neuron_fi(
@@ -63,11 +63,11 @@ class TestMixedPrecision:
             self.model2,
             self.BATCH_SIZE,
             input_shape=[3, self.img_size, self.img_size],
+            num_sys=[self.num_sys_name] * 14,
             use_cuda=self.USE_GPU,
             layer_max=self.layer_max,
             quant=False,
             inj_order=0,
-            num_sys=[getNumSysName(self.num_sys_name)] * 14,
         )
 
         inf_model2 = gmodel1.declare_neuron_fi(
@@ -79,40 +79,6 @@ class TestMixedPrecision:
 
         print("Testing fake mixed: ")
         print(inf_model2(self.images))
-
-
-#################################################################
-################### HELPER METHODS FOR NUMSYS ###################
-#################################################################
-def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
-    # common number systems in PyTorch
-    if name == "fp32":
-        return num_fp32(), name
-    if name == "INT":
-        # assert getQuantize_en()
-        return num_fp32(), name
-    elif name == "fp16":
-        return num_fp16(), name
-    elif name == "bfloat16":
-        return num_bfloat16(), name
-
-    # generic number systems in PyTorch
-    elif name == "fp_n":
-        return num_float_n(exp_len=radix_up, mant_len=radix_down), name
-    elif name == "fxp_n":
-        return num_fixed_pt(int_len=radix_up, frac_len=radix_down), name
-    elif name == "block_fp":
-        return block_fp(bit_width=bits, exp_len=radix_up, mant_len=radix_down), name
-    elif name == "adaptive_fp":
-        return (
-            adaptive_float(
-                bit_width=bits, exp_len=radix_up, mant_len=radix_down, exp_bias=bias
-            ),
-            name,
-        )
-
-    else:
-        sys.exit("Number format not supported")
 
 
 #################################################################
