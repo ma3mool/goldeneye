@@ -72,7 +72,7 @@ class goldeneye(core.fault_injection):
         else:  # type(num_sys) is list:
             assert type(num_sys) is list
 
-            self.num_sys = self.to_numsys_list(num_sys)
+            self.num_sys = to_numsys_list(num_sys)
             (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys[0]
 
     def set_layer_max(self, data):
