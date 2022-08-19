@@ -57,7 +57,7 @@ class goldeneye(core.fault_injection):
         # the order of injecting within the goldeneye transformation
         # 0 -> no injection, 1 -> between quantization and de-quantization, 2 -> after converting to the number system, 3 -> after dequantization, 4 -> after converting num sys
 
-    def process_num_sys_input(self, num_sys):
+    def process_numsys_input(self, num_sys):
         # Options:
         # 1. num_sys is a string
         # 2. num_sys is a tuple (numsys_obj, name)
