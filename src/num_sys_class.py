@@ -615,27 +615,27 @@ def config_to_numsys(config):
     ## DESC: converts a configuration (eg. ("fp", 8, 23) to a number system object
 
     # check config format is correct
-    assert type(config) is tuple
+    assert type(config) == tuple
 
-    if config[0] is "fp32":
+    if config[0] == "fp32":
         return num_fp32(), "fp32"
-    elif config[0] is "INT":
+    elif config[0] == "INT":
         # assert getQuantize_en()
         return num_fp32(), "INT"
-    elif config[0] is "fp16":
+    elif config[0] == "fp16":
         return num_fp16(), "fp16"
-    elif config[0] is "bfloat16":
+    elif config[0] == "bfloat16":
         return num_bfloat16(), "bfloat16"
-    elif config[0] is "fp":
+    elif config[0] == "fp":
         return num_float_n(exp_len=config[1], mant_len=config[2]), "fp_n"
-    elif config[0] is "fxp":
+    elif config[0] == "fxp":
         return num_fixed_pt(int_len=config[1], frac_len=config[2]), "fxp_n"
-    elif config[0] is "block_fp":
+    elif config[0] == "block_fp":
         return (
             block_fp(bit_width=config[1], exp_len=config[2], mant_len=config[3]),
             "block_fp",
         )
-    elif config[0] is "adaptive_fp":
+    elif config[0] == "adaptive_fp":
         return (
             adaptive_float(
                 bit_width=config[1],
