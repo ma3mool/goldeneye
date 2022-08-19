@@ -64,10 +64,10 @@ class goldeneye(core.fault_injection):
         # 3. num_sys is a list of configurations or strings(eg. [("fp", 8, 23), "bfloat16",("fxp", 5, 10)])
 
         if type(num_sys) is str:
-            (self.cur_num_sys, self.cur_num_sys_name) = string_to_numsys(self.num_sys)
+            (self.cur_num_sys, self.cur_num_sys_name) = string_to_numsys(num_sys)
             self.num_sys = num_sys
         elif type(num_sys) is tuple:  # i.e one numsys_obj, name tuple
-            (self.cur_num_sys, self.cur_num_sys_name) = self.num_sys
+            (self.cur_num_sys, self.cur_num_sys_name) = num_sys
             self.num_sys = num_sys
         else:  # type(num_sys) is list:
             assert type(num_sys) is list
