@@ -39,16 +39,15 @@ class TestMixedPrecision:
             cuda_en=self.USE_GPU,
         )
 
-    def test_uniform_string_and_list_of_strings(self, params):
+    def test_diff_string_and_list_of_strings(self):
 
         # Prepare goldeneye models for inference
-        self.num_sys_name = params["num_sys_name"]
 
         gmodel1 = goldeneye(
             self.model1,
             self.BATCH_SIZE,
             input_shape=[3, self.img_size, self.img_size],
-            num_sys=self.num_sys_name,
+            num_sys="fp32",
             quant=False,
             use_cuda=self.USE_GPU,
             layer_max=self.layer_max,
@@ -63,7 +62,47 @@ class TestMixedPrecision:
             self.model2,
             self.BATCH_SIZE,
             input_shape=[3, self.img_size, self.img_size],
-            num_sys=[self.num_sys_name] * 14,
+            num_sys=["fp32"] * 14,
+            use_cuda=self.USE_GPU,
+            layer_max=self.layer_max,
+            quant=False,
+            inj_order=0,
+        )
+
+        inf_model2 = gmodel1.declare_neuron_fi(
+            function=gmodel1.apply_goldeneye_transformation
+        )
+
+        print("Testing uniform: ")
+        print(inf_model1(self.images))
+
+        print("Testing fake mixed: ")
+        print(inf_model2(self.images))
+    
+    def test_uniform_string_list_of_configs(self, params):
+
+        # Prepare goldeneye models for inference
+
+        gmodel1 = goldeneye(
+            self.model1,
+            self.BATCH_SIZE,
+            input_shape=[3, self.img_size, self.img_size],
+            num_sys="fp32",
+            quant=False,
+            use_cuda=self.USE_GPU,
+            layer_max=self.layer_max,
+            inj_order=0,
+        )
+
+        inf_model1 = gmodel1.declare_neuron_fi(
+            function=gmodel1.apply_goldeneye_transformation
+        )
+
+        gmodel2 = goldeneye(
+            self.model2,
+            self.BATCH_SIZE,
+            input_shape=[3, self.img_size, self.img_size],
+            num_sys=[("fp", 5, 10), ("fxp", 4, 10)] * 7,
             use_cuda=self.USE_GPU,
             layer_max=self.layer_max,
             quant=False,
