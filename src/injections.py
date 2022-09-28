@@ -44,8 +44,6 @@ def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize, function=-1):
     )
 
 
-
-
 if __name__ == "__main__":
 
     # Read in cmd line args
@@ -117,12 +115,21 @@ if __name__ == "__main__":
 
     # init PyTorchFI
     baseC = 3
-    if "IMAGENET" in getDataset():
+    if "imagenet" in getDataset().lower():
         baseH = 224
         baseW = 224
-    elif "CIFAR" in getDataset():
+    elif "cifar" in getDataset().lower():
         baseH = 32
         baseW = 32
+    elif "custom" in getDataset().lower():
+        # Read config.ini file
+        config_object = ConfigParser()
+        config_object.read("../config.ini")
+
+        # Get the dataset details
+        dataset_info = config_object["CUSTOMDATASETINFO"]
+        baseH = int(dataset_info["imgHeight"])
+        baseW = int(dataset_info["imgWidth"])
 
     exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
     mantissa_bits = getRadix()  # also FRAC for fixed point
@@ -170,7 +177,10 @@ if __name__ == "__main__":
             pbar.update(samples)
 
             # prep images
+            # try:
             images, labels, img_ids, index = dataiter.next()
+            # except StopIteration:
+            #     break
             if getCUDA_en():
                 labels = labels.cuda()
                 images = images.cuda()
