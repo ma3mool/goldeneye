@@ -4,13 +4,16 @@ from util import *
 Randomizes and returns two lists. Split is between 0-1, and refers to the size of the rank set.
 Example, .8 means 80/20 split
 '''
+
+
 def gen_sets(golden_indices, split):
     total = len(golden_indices)
-    split_index = int(total*split)
+    split_index = int(total * split)
     randomized = random.sample(golden_indices, total)
     rank_set = randomized[0:split_index]
-    test_set = randomized[split_index : ]
+    test_set = randomized[split_index:]
     return rank_set, test_set
+
 
 if __name__ == '__main__':
     # Read in cmd line args
@@ -30,7 +33,6 @@ if __name__ == '__main__':
         bitwidth_fp = getBitwidth()
         quant_en = False
 
-
     name = getDNN() + "_" + getDataset() + "_real" + getPrecision() + "_sim" + format + "_bw" + str(bitwidth_fp) \
            + "_r" + str(getRadix()) + "_bias" + str(getBias())
 
@@ -39,27 +41,36 @@ if __name__ == '__main__':
     golden_data = load_file(netProfilePath + "golden_data")
 
     split_ratio = .8
-    
     # generate an Analysis Set (AS) and Deployment Set (DS)
-    if "IMAGENET" in getDataset():  images_base = list(range(0,50000))
-    elif "CIFAR" in getDataset():   images_base = list(range(0,10000))
-    
+    if getDataset().upper() == "IMAGENET":
+        images_base = list(range(0, 50000))
+    elif getDataset().upper() == "CIFAR10":
+        images_base = list(range(0, 10000))
+    elif "custom" in getDataset().lower():
+        # Read config.ini file
+        config_object = ConfigParser()
+        config_object.read("../config.ini")
+        # find dataset size
+        dataset_info = config_object["CUSTOMDATASETINFO"]
+        testset_size = int(dataset_info["testsetSize"])
+        dataset_percentage = int(dataset_info["loadDatasetPercentage"])
+        images_base = list(range(0, int(10000 * (dataset_percentage / 100))))
     random.seed(9001)
-    analysis_set, deployment_set= gen_sets(images_base, split_ratio)
+    analysis_set, deployment_set = gen_sets(images_base, split_ratio)
     save_data(outPath, "analysis_set", analysis_set)
     save_data(outPath, "deployment_set", deployment_set)
-    random.seed()  #back to randomness
+    random.seed()  # back to randomness
 
     # generate a list from the correct images in AS and DS
     # Also drop images where top2diff is 0
     ASgoodImgs = []
     DSgoodImgs = []
     for i in analysis_set:
-        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0 :
+        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0:
             ASgoodImgs.append(i)
 
     for i in deployment_set:
-        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0 :
+        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0:
             DSgoodImgs.append(i)
 
     save_data(outPath, "rank_set_good", ASgoodImgs)
@@ -68,24 +79,24 @@ if __name__ == '__main__':
     # CSVs of imgs
     f = open(outPath + "AS.csv", "w+")
     for i in range(len(analysis_set)):
-        outputString = "%d\n" %(analysis_set[i])
+        outputString = "%d\n" % (analysis_set[i])
         f.write(outputString)
     f.close()
 
     f = open(outPath + "DS.csv", "w+")
     for i in range(len(deployment_set)):
-        outputString = "%d\n" %(deployment_set[i])
+        outputString = "%d\n" % (deployment_set[i])
         f.write(outputString)
     f.close()
 
     f = open(outPath + "AS_good.csv", "w+")
     for i in range(len(ASgoodImgs)):
-        outputString = "%d\n" %(ASgoodImgs[i])
+        outputString = "%d\n" % (ASgoodImgs[i])
         f.write(outputString)
     f.close()
 
     f = open(outPath + "DS_good.csv", "w+")
     for i in range(len(DSgoodImgs)):
-        outputString = "%d\n" %(DSgoodImgs[i])
+        outputString = "%d\n" % (DSgoodImgs[i])
         f.write(outputString)
     f.close()
