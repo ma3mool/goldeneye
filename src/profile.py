@@ -127,7 +127,15 @@ if __name__ == '__main__':
     elif "CIFAR" in getDataset():
         baseH = 32
         baseW = 32
+    elif "custom" in getDataset().lower():
+        # Read config.ini file
+        config_object = ConfigParser()
+        config_object.read("../config.ini")
 
+        # Get the dataset details
+        dataset_info = config_object["CUSTOMDATASETINFO"]
+        baseH = int(dataset_info["imgHeight"])
+        baseW = int(dataset_info["imgWidth"])
 
     goldeneye_model = goldeneye(
         model,
