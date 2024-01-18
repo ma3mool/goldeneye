@@ -1,14 +1,14 @@
 import time
-import torch.nn as nn
-
-# import pytorchfi.pytorchfi.error_models
 from util import *
+from PIL import Image, ImageDraw
+import torch.nn as nn
 from tqdm import tqdm
 from goldeneye import goldeneye
+from torchvision.transforms.functional import to_pil_image
+from profiling import calculate_precision_recall_f1,check_labels_tensors
 
 # from num_sys_class import *
 # sys.path.append("./pytorchfi")
-
 
 def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize, function=-1):
     dim = len(shape)
@@ -43,13 +43,11 @@ def rand_neurons_batch(pfi_model, layer, shape, maxval, batchsize, function=-1):
         function=function,
     )
 
-
-
-
 if __name__ == "__main__":
 
     # Read in cmd line args
     check_args(sys.argv[1:])
+    printArgs()
     if getDebug():
         printArgs()
 
@@ -79,6 +77,13 @@ if __name__ == "__main__":
     profile_path = getOutputDir() + "/networkProfiles/" + name + "/"
     data_subset_path = getOutputDir() + "/data_subset/" + name + "/"
     out_path = getOutputDir() + "/injections/" + name + "/"
+    out_saved_imgs_path = getOutputDir() + "/injections/" + name + "/inj_output_imgs"
+
+    if os.path.exists(out_saved_imgs_path):
+        pass
+    else:
+        os.mkdir(out_saved_imgs_path)
+
     image_set = ""
 
     if getTraining_en():
@@ -106,12 +111,16 @@ if __name__ == "__main__":
         workers=getWorkers(),
     )
     model = getNetwork(getDNN(), getDataset())
-    criterion = nn.CrossEntropyLoss(reduction="none")
+    criterion = torchvision.models.detection.fasterrcnn_resnet50_fpn().cuda()
+    criterion.train()
+    img_ids = 0
+    #criterion = nn.CrossEntropyLoss(reduction="none")
 
     if getCUDA_en():
         model = model.cuda()
     if getPrecision() == "FP16":
         model = model.half()
+    print(" Dataset & Model loaded....")
     model.eval()
     torch.no_grad()
 
@@ -120,12 +129,18 @@ if __name__ == "__main__":
     if "IMAGENET" in getDataset():
         baseH = 224
         baseW = 224
+    
     elif "CIFAR" in getDataset():
         baseH = 32
         baseW = 32
 
+    elif "COCO" in getDataset():
+        baseH = 480
+        baseW = 640
+
     exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
     mantissa_bits = getRadix()  # also FRAC for fixed point
+
     goldeneye_model = goldeneye(
         model,
         getBatchsize(),
@@ -170,20 +185,18 @@ if __name__ == "__main__":
             pbar.update(samples)
 
             # prep images
-            images, labels, img_ids, index = dataiter.next()
-            if getCUDA_en():
-                labels = labels.cuda()
-                images = images.cuda()
-            if getPrecision() == "FP16":
-                images = images.half()
-
+            for images, labels, index in dataiter:
+                images = list(img.cuda() for img in images)
+                labels = [{k: v.cuda() for k, v in t.items()} for t in labels]
+                
+                if getPrecision() == "FP16":
+                    images = images.half()
 
             # inj_model = random_neuron_single_bit_inj_batched(pfi_model, ranges)
             # inj_model_locations = random_neuron_inj_batched(pfi_model,
             #                                         min_val= abs(ranges[currLayer]) * -1,
             #                                         max_val=abs(ranges[currLayer]),
             #                                       )
-
             # injection locations
             with torch.no_grad():
                 inf_model = rand_neurons_batch(goldeneye_model,
@@ -193,8 +206,6 @@ if __name__ == "__main__":
                                            getBatchsize(),
                                            function=goldeneye_model.apply_goldeneye_transformation
                                            )
-
-
             # injection model
             # inf_model = goldeneye.declare_neuron_fi(batch=batch_inj,
             #                                         layer=layer_inj,
@@ -206,18 +217,47 @@ if __name__ == "__main__":
 
             # perform inference
                 output_inj = inf_model(images)
-                output_argmax = torch.argmax(output_inj, dim=1)
-                output_inj_loss = criterion(output_inj, labels)
+                out_loss = criterion(images,labels)
+                cls_loss = out_loss['loss_classifier'].item()
+                bbox_loss = out_loss['loss_box_reg'].item()
+                obj_loss = out_loss['loss_objectness'].item()
+                rpn_loss = out_loss['loss_rpn_box_reg'].item()
+                out_inj_lossess = [cls_loss, bbox_loss, obj_loss, rpn_loss]
 
-            # save results
-            layerInjects.append(
-                (
-                    index.tolist(),
-                    output_argmax.data.tolist(),
-                    output_inj_loss.tolist(),
+            for idx, img in enumerate(images):
+                try:
+                    img = to_pil_image(img)
+                    draw = ImageDraw.Draw(img)
+
+                    inj_pred_bboxes = output_inj[idx]['boxes'].int().cpu()
+                    inj_pred_labels = output_inj[idx]['labels'].cpu()
+                    inj_pred_box_confs = output_inj[idx]['scores']
+                    gr_label = labels[idx]['labels'].cpu()
+                    inj_correct_boxes = check_labels_tensors(gr_label.cpu(), inj_pred_labels.cpu())[0]
+                    inj_wrong_boxes = check_labels_tensors(gr_label.cpu(), inj_pred_labels.cpu())[1]
+
+                    inj_precisions= calculate_precision_recall_f1(output_inj[idx]['boxes'],labels[idx]['boxes'], 0.60)
+
+                    for box, inj_pd_label, inj_score, in zip(inj_pred_bboxes, inj_pred_labels, inj_pred_box_confs):
+                        if inj_score > 0.4:
+                            draw.rectangle([(box[0], box[1]), (box[2], box[3])], outline="blue", width=4)
+                            draw.text((box[0], box[1]), f"{inj_pd_label}: {inj_score:.2f}", fill="red")
+                            img.save(f"{out_saved_imgs_path}/output_{index[idx]}_{str(currLayer)}{inj_score:.2f}.png")
+                except:
+                    continue
+
+                layerInjects.append(
+                    (
+                        index,
+                        inj_pred_bboxes,
+                        inj_pred_labels,
+                        inj_pred_box_confs,
+                        inj_precisions,
+                        inj_correct_boxes,
+                        inj_wrong_boxes,
+                        out_inj_lossess,
+                    )
                 )
-            )
-
             samples += getBatchsize()
             torch.cuda.empty_cache()
             # print("")

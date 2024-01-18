@@ -2,7 +2,7 @@ from util import *
 
 ''' 
 Randomizes and returns two lists. Split is between 0-1, and refers to the size of the rank set.
-Example, .8 means 80/20 split
+Example, 0.8 means 80/20 split
 '''
 def gen_sets(golden_indices, split):
     total = len(golden_indices)
@@ -37,13 +37,13 @@ if __name__ == '__main__':
     netProfilePath = getOutputDir() + "/networkProfiles/" + name + "/"
     outPath = getOutputDir() + "/data_subset/" + name + "/"
     golden_data = load_file(netProfilePath + "golden_data")
+    split_ratio = 0.8
 
-    split_ratio = .8
-    
     # generate an Analysis Set (AS) and Deployment Set (DS)
     if "IMAGENET" in getDataset():  images_base = list(range(0,50000))
     elif "CIFAR" in getDataset():   images_base = list(range(0,10000))
-    
+    elif "COCO" in getDataset():   images_base = list(range(0, 4999))
+
     random.seed(9001)
     analysis_set, deployment_set= gen_sets(images_base, split_ratio)
     save_data(outPath, "analysis_set", analysis_set)
@@ -51,17 +51,22 @@ if __name__ == '__main__':
     random.seed()  #back to randomness
 
     # generate a list from the correct images in AS and DS
-    # Also drop images where top2diff is 0
     ASgoodImgs = []
     DSgoodImgs = []
-    for i in analysis_set:
-        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0 :
-            ASgoodImgs.append(i)
 
-    for i in deployment_set:
-        if golden_data[i][0] == golden_data[i][1] and golden_data[i][3] > 0 :
-            DSgoodImgs.append(i)
+    try:
+        for i in analysis_set:
+            if golden_data[i][12] < 5:
+                ASgoodImgs.append(i)
+    except:
+        pass
 
+    try:
+        for i in deployment_set:
+            if golden_data[i][12] < 5:
+                DSgoodImgs.append(i)
+    except:
+        pass
     save_data(outPath, "rank_set_good", ASgoodImgs)
     save_data(outPath, "test_set_good", DSgoodImgs)
 

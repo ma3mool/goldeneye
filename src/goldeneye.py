@@ -50,7 +50,11 @@ class goldeneye(core.fault_injection):
         self.bits = kwargs.get("bits", 8)
 
         # the order of injecting within the goldeneye transformation
-        # 0 -> no injection, 1 -> between quantization and de-quantization, 2 -> after converting to the number system, 3 -> after dequantization, 4 -> after converting num sys
+        # 0 -> no injection, 
+        # 1 -> between quantization and de-quantization, 
+        # 2 -> after converting to the number system, 
+        # 3 -> after dequantization, 
+        # 4 -> after converting num sys
 
     def set_layer_max(self, data):
         self.LayerRanges = data
