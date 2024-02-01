@@ -8,13 +8,18 @@ FORMAT=${4}  #"fp_n"    # simulated format
 BITWIDTH=${5}   #32
 RADIX=${6}      #23
 INJECTIONS_LOC=${7}  # {0, no injection}. {1: value} or {2, META}
+OUTPUT_PATH=${8} 
 
 
-OUTPUT_PATH="../output/"
+# e.g. for imagenet corrupted: ../output/task1a/C_IMAGENET/contrast/
+
+
+
+OUTPUT_PATH="$OUTPUT_PATH"
 SRC_PATH="../src/"
 LOG_PATH="./log/"
 SCRIPT1="../src/preprocess.py"
-SCRIPT2="../src/profile.py"
+SCRIPT2="../src/profilee.py"
 SCRIPT3="../src/split_data.py"
 SCRIPT4="../src/injections.py"
 SCRIPT5="../src/postprocess.py"
@@ -27,7 +32,7 @@ QUANT="" # -q leave empty if you do not want quantization
 TRAINSET="" # -r. leave empty if using testset
 WORKERS=16
 
-INJECTIONS=102400 #${BATCH}
+INJECTIONS=4096 #${BATCH}
 #INJECTIONS_LOC=1  # {0, no injection}. {1: value} or {2, META}
                   #OLD {2, INT value}, or {3, INT scaling}, or {4, block meta}, or {5, adaptive meta}
 
@@ -64,6 +69,7 @@ RANGES_FILE="${OUTPUT_PATH}/networkRanges/${RANGES}"
 GOLDEN="${NETWORK}_${DATASET}_real${PRECISION}_sim${FORMAT}_bw${BITWIDTH}_r${RADIX}_biasNone/golden_data.p.bz2"
 GOLDEN_FILE="${OUTPUT_PATH}/networkProfiles/${GOLDEN}"
 
+# echo ${RANGES_FILE}
 
 echo "!===================================!"
 echo "! Launching ${NETWORK}-${DATASET}-${PRECISION}"
