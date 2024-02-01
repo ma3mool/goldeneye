@@ -55,6 +55,7 @@ def _layer_file_processing(data_in):
 
 
             # golden info
+            #
             gold_inf, gold_label, gold_conf, gold_top2diff, gold_loss = golden_data[img_id]
 
             # compare golden info with injection info

@@ -41,8 +41,14 @@ if __name__ == '__main__':
     split_ratio = .8
     
     # generate an Analysis Set (AS) and Deployment Set (DS)
-    if "IMAGENET" in getDataset():  images_base = list(range(0,50000))
+    if "PUG_IMAGENET" in getDataset(): 
+        number=46336 #worlds
+        images_base=list(range(0,number)) 
+    elif "IMAGENET" in getDataset():  images_base = list(range(0,50000))
     elif "CIFAR" in getDataset():   images_base = list(range(0,10000))
+    elif "FOOD101" in getDataset():  images_base = list(range(0,25250))
+    elif "STL10" in getDataset():  images_base = list(range(0,8000))
+
     
     random.seed(9001)
     analysis_set, deployment_set= gen_sets(images_base, split_ratio)

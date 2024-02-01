@@ -5,6 +5,8 @@ import torch.nn as nn
 from util import *
 from tqdm import tqdm
 from goldeneye import goldeneye
+from label_conversion import *
+import numpy as np
 
 # from num_sys_class import *
 # sys.path.append("./pytorchfi")
@@ -90,6 +92,7 @@ if __name__ == "__main__":
 
     # load important info: ranges, mapping, good images
     ranges = load_file(range_path + "ranges_trainset_layer")
+    print(data_subset_path + image_set)
     good_img_set = load_file(data_subset_path + image_set)
 
     # constants
@@ -121,8 +124,14 @@ if __name__ == "__main__":
         baseH = 224
         baseW = 224
     elif "CIFAR" in getDataset():
-        baseH = 32
-        baseW = 32
+        baseH = 224 
+        baseW = 224
+    elif "FOOD" in getDataset():
+        baseH = 224
+        baseW = 224
+    elif "STL" in getDataset():
+        baseH = 224
+        baseW = 224
 
     exp_bits = getBitwidth() - getRadix() - 1  # also INT for fixed point
     mantissa_bits = getRadix()  # also FRAC for fixed point
@@ -156,6 +165,8 @@ if __name__ == "__main__":
     assert goldeneye_model.get_total_layers() == total_layers
     shapes = goldeneye_model.get_output_size()
 
+    if "PUG" in getDataset():
+        mapping=find_mapping()
     # ERROR INJECTION CAMPAIGN
     start_time = time.time()
     for currLayer in tqdm(range(goldeneye_model.get_total_layers()), desc="Layers"):
@@ -170,7 +181,7 @@ if __name__ == "__main__":
             pbar.update(samples)
 
             # prep images
-            images, labels, img_ids, index = dataiter.next()
+            images, labels, img_ids, index = next(dataiter)
             if getCUDA_en():
                 labels = labels.cuda()
                 images = images.cuda()
@@ -205,8 +216,13 @@ if __name__ == "__main__":
             #                                         )
 
             # perform inference
-                output_inj = inf_model(images)
-                output_argmax = torch.argmax(output_inj, dim=1)
+                output_inj = inf_model(images)  
+                output_argmax = torch.argmax(output_inj, dim=1) #CONVERSION FOR PUGG 150(IMAGENET)--> 50 IN PUGIMAGENET 
+                if "PUG" in getDataset():
+                    # print(output_inj)
+                  
+                    output_argmax=np.vectorize(convert_pred)(output_argmax.cpu(), mapping)
+
                 output_inj_loss = criterion(output_inj, labels)
 
             # save results
