@@ -81,7 +81,7 @@ python postprocess.py -b 16 -n frcnn -d COCO -w 16 -P FP32 -i 102400 -I 1 -f fp_
 
 ## Acknowledgements
 
-- This Repository was forked from [Goldeneye](https://github.com/ma3mool/goldeneye/) developed and maintained by [Dr. Abdulrahman Mahmoud](https://ma3mool.github.io/)
+- This Repository was forked from [Goldeneye](https://github.com/ma3mool/goldeneye/) developed and maintained by [Sajid Ahmed](https://sajidahmed12.github.io) & [Dr. Abdulrahman Mahmoud](https://ma3mool.github.io/)
 
 ## License
 <a href="LICENSE">MIT License</a>
