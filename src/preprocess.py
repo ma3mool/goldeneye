@@ -15,14 +15,15 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
     if cuda_en:
         layer_max = layer_max.cuda()
         layer_min = layer_min.cuda()
+
     if precision == "FP16":
         layer_max = layer_max.half()
         layer_min = layer_min.half()
 
-
     # register forward hook to the model
     handles = []
     for param in model.modules():
+        #or isinstance(param, nn.BatchNorm2d) or isinstance(param, nn.ReLU) or isinstance(param, nn.MaxPool2d)
         if isinstance(param, nn.Conv2d) or isinstance(param, nn.Linear):
             handles.append(param.register_forward_hook(save_activations))
 
@@ -34,9 +35,10 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
 
         # prepare the next batch for inference
         images, labels = input_data
-        if cuda_en:
-            images = images.cuda()
-            labels = labels.cuda()
+        # prepare the next batch for inference as an tuple for COCO Dataset
+        images = list(img for img in images)
+        labels = [{k: v for k, v in t.items()} for t in labels]
+
         if precision == "FP16":
             images = images.half()
 
@@ -50,11 +52,13 @@ def gather_min_max_per_layer(model, data_iter, batch_size, precision="FP16", cud
             .cuda()
             .half()
         )
+
         max_vals = (
             torch.Tensor(list(map(lambda layer: layer.max().item(), activations)))
             .cuda()
             .half()
         )
+
         if batch_num == 0:
             layer_max = max_vals
             layer_min = min_vals
@@ -87,6 +91,7 @@ if __name__ == '__main__':
 
     # load data and model
     dataiter = load_dataset(getDataset(), getBatchsize(), workers = getWorkers(), training=True, include_id=False)
+
     model = getNetwork(getDNN(), getDataset())
     model.eval()
     torch.no_grad()

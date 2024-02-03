@@ -1,21 +1,24 @@
-import sys, os, bz2, random
-import argparse
-import pickle as cPickle
-import pandas as pd
+import timm
 import torch
+import dataloader
+import argparse
 import torchvision
+import numpy as np
+import pickle as cPickle
+from num_sys_class import *
+import sys, os, bz2, random
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
-import timm
-import numpy as np
-from num_sys_class import *
-from othermodels import resnet, vgg, cifar10_nn
+
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor, fasterrcnn_resnet50_fpn_v2
+from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights, FasterRCNN_ResNet50_FPN_V2_Weights
+
 
 '''
 Environment Variables
 '''
-DATASETS = os.environ['ML_DATASETS']
+DATASETS = ''
 
 '''
 Helper functions to parse input
@@ -44,106 +47,25 @@ debug_in = False
 
 def check_args(args=None):
     parser = argparse.ArgumentParser(description='Arguments')
-    parser.add_argument('-b', '--batchsize',
-                        help='Batch Size for inference',
-                        type=int,
-                        required='True',
-                        default=8)
 
-    parser.add_argument('-n', '--dnn',
-                        help='Neural network',
-                        required='True',
-                        default='alexnet')
-
-    parser.add_argument('-d', '--dataset',
-                        help='CIFAR10, CIFAR100, or IMAGENET',
-                        required='True',
-                        default='IMAGENET')
-
-    parser.add_argument('-f', '--format',
-                        help='Data format: fp32, fp16, bfloat16, fixedpt',
-                        required='True',
-                        default='fp32')
-
-    parser.add_argument('-P', '--precision',
-                        help='FP32 or FP16',
-                        default='FP16')
-
-    parser.add_argument('-o', '--output',
-                        help='output path',
-                        default='../output/')
-
-    parser.add_argument('-C', '--cuda',
-                        help='True or False',
-                        type=str2bool,
-                        nargs='?',
-                        const=True,
-                        default=True)
-
-    parser.add_argument('-i', '--injections',
-                        help='The number of injections to perform',
-                        type=int,
-                        default=-1)
-
-    parser.add_argument('-I', '--injectionLocation',
-                        help='Injection Location (0-5)',
-                        type=int,
-                        default=-0)
-
-    parser.add_argument('-R', '--radix',
-                        help='Radix point for number format, from LSB',
-                        type=int,
-                        default=-1)
-
-    parser.add_argument('-B', '--bitwidth',
-                        help='Bitwidth of number format',
-                        type=int,
-                        default=32)
-
-    parser.add_argument('-a', '--bias',
-                        help='Bias value for AdaptivFloat number format',
-                        type=int,
-                        default=None)
-
-    parser.add_argument('-r', '--training',
-                        help='When enabled, this is training data. When disabled, this is testing data',
-                        type=str2bool,
-                        nargs='?',
-                        const=True,
-                        default=False)
-
-    parser.add_argument('-w', '--workers',
-                        help='Number of workers for dataloader',
-                        type=int,
-                        default=0)
-
-    parser.add_argument('-q', '--quantize',
-                        help='Enable neuron quantization (def=8 bits)',
-                        type=str2bool,
-                        nargs='?',
-                        const=True,
-                        default=False)
-
-    parser.add_argument('-e', '--errormodel',
-                        help='Single bit flip error model during quantization. -q needs to be enabled too',
-                        type=str2bool,
-                        nargs='?',
-                        const=True,
-                        default=False)
-
-    parser.add_argument('-v', '--verbose',
-                        help='True or False',
-                        type=str2bool,
-                        nargs='?',
-                        const=True,
-                        default=False)
-
-    parser.add_argument('-D', '--debug',
-                        help='True or False',
-                        type=str2bool,
-                        nargs='?',
-                        const=True,
-                        default=False)
+    parser.add_argument('-b', '--batchsize', help='Batch Size for inference', type = int, required='True', default=8)
+    parser.add_argument('-n', '--dnn', help='Neural network architecture backbone', required = 'True', default='alexnet')
+    parser.add_argument('-d', '--dataset', help='CIFAR10, CIFAR100, IMAGENET or, COCO', required='True', default='IMAGENET')
+    parser.add_argument('-f', '--format', help='Data format: fp32, fp16, bfloat16, fixedpt', required='True', default='fp32')
+    parser.add_argument('-P', '--precision', help='FP32 or FP16', default='FP16')
+    parser.add_argument('-o', '--output', help='output path', default='../output/')
+    parser.add_argument('-C', '--cuda', help='True or False', type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument('-i', '--injections', help='The number of injections to perform', type=int, default=-1)
+    parser.add_argument('-I', '--injectionLocation', help='Injection Location (0-5)', type=int, default=-0)
+    parser.add_argument('-R', '--radix', help='Radix point for number format, from LSB', type=int, default=-1)
+    parser.add_argument('-B', '--bitwidth', help='Bitwidth of number format', type=int, default=32)
+    parser.add_argument('-a', '--bias', help='Bias value for AdaptivFloat number format', type=int, default=None)
+    parser.add_argument('-r', '--training', help='When enabled, this is training data. When disabled, this is testing data', type=str2bool, nargs='?', const=True, default=False)
+    parser.add_argument('-w', '--workers', help='Number of workers for dataloader', type=int, default=0)
+    parser.add_argument('-q', '--quantize', help='Enable neuron quantization (def=8 bits)', type=str2bool, nargs='?', const=True, default=False)
+    parser.add_argument('-e', '--errormodel', help='Single bit flip error model during quantization. -q needs to be enabled too', type=str2bool, nargs='?', const=True, default=False)
+    parser.add_argument('-v', '--verbose', help='True or False for logging info', type=str2bool, nargs='?', const=True, default=False)
+    parser.add_argument('-D', '--debug', help='True or False', type=str2bool, nargs='?', const=True, default=False)
 
     results = parser.parse_args(args)
 
@@ -175,7 +97,6 @@ def check_args(args=None):
     # make sure single bit flip is enabled only if quantization is enabled
     # if singlebitflip_in:
     #     assert (quantize_in)
-
 
 def getBatchsize(): return batchsize_in
 def getDNN(): return dnn_in
@@ -232,7 +153,10 @@ def str2bool(v):
 
 # returns the number of classes for common datasets
 def getNumClasses(dataset):
-    if(dataset == 'CIFAR10'):
+    
+    if(dataset == 'COCO'):
+        return 91
+    elif(dataset == 'CIFAR10'):
         return 10
     elif(dataset == 'CIFAR100'):
         return 100
@@ -292,6 +216,44 @@ def getNetwork(networkName, DATASET):
         elif networkName == "cifar10_nn_v2":
             MODEL = cifar10_nn.v2(pretrained=True, output_size=getNumClasses(DATASET))
 
+    elif DATASET == "COCO":
+        
+        if networkName =='maskrcnn':
+            MODEL = torchvision.models.detection.maskrcnn_resnet50_fpn(progress=True, num_classes=getNumClasses(DATASET))
+        
+        elif networkName =='frcnn':
+            MODEL = torchvision.models.detection.fasterrcnn_resnet50_fpn(progress=True, num_classes=getNumClasses(DATASET))
+
+        elif networkName =='keypointrcnn':
+            MODEL = torchvision.models.detection.keypointrcnn_resnet50_fpn(progress=True, num_classes=getNumClasses(DATASET))
+
+        elif networkName =='ssd300':
+            MODEL = torchvision.models.detection.ssd300_vgg16(progress=True, num_classes=getNumClasses(DATASET))
+        
+        elif networkName =='ssd':
+            MODEL = torchvision.models.detection.SSD( progress=True, num_classes=getNumClasses(DATASET))
+        
+        elif networkName =='fcos':
+            MODEL = torchvision.models.detection.fcos_resnet50_fpn(progress=True, num_classes=getNumClasses(DATASET))
+        
+        elif networkName =='ssdlite':
+            MODEL = torchvision.models.detection.ssdlite320_mobilenet_v3_large( progress=True, num_classes=getNumClasses(DATASET))
+        
+        elif networkName =='retinanet_resnet50_fpn':
+            MODEL = torchvision.models.detection.retinanet_resnet50_fpn(progress=True, num_classes=getNumClasses(DATASET), pretrained_backbone=True)
+        
+        elif networkName =='yolov3s':
+            MODEL = torch.hub.load('ultralytics/yolov3', 'yolov3s',force_reload=True)
+                
+        elif networkName =='yolov5s':
+            MODEL = torch.hub.load('ultralytics/yolov5', 'yolov5s',force_reload=True)
+        
+        elif networkName =='yolov8s':
+            MODEL = torch.hub.load('ultralytics/yolov8', 'yolov8s',force_reload=True)
+       
+        elif networkName =='yolovnas':
+            from ultralytics import NAS
+            MODEL = NAS('yolo_nas_s.pt')
         # Error
         else:
             sys.exit("Network does not exist")
@@ -314,13 +276,35 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
             )
 
         if include_id:
-            testset = IdCifar10(root='./data', train=training, download=True, transform=transform)
+            testset = IdCifar10(root='../data', train=training, download=True, transform=transform)
         else:
-            testset = datasets.CIFAR10(root='./data', train=training, download=True, transform=transform)
+            testset = datasets.CIFAR10(root='../data', train=training, download=True, transform=transform)
 
         test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
                 shuffle=shuffleIn, num_workers=workers, pin_memory=True)
         dataiter = iter(test_loader)
+
+
+    elif DATASET == 'COCO':
+        # coco_dataset = dataloader.COCODataset(root="../data/extras/train",
+        #                                     annotation="../data/extras/my_train_coco.json",
+        #                                     transforms=dataloader.get_transform())
+
+        coco_dataset = dataloader.COCODataset(root="../data/mscoco/val2017",
+                                            annotation="../data/mscoco/annotations/instances_val2017.json",
+                                            transforms=dataloader.get_transform())
+
+        data_loader = torch.utils.data.DataLoader(
+            coco_dataset,
+            batch_size = BATCH_SIZE,
+            shuffle = shuffleIn,
+            num_workers = workers,
+            pin_memory=True,
+            pin_memory_device='cuda',
+            collate_fn = dataloader.collate_fn,
+        )
+        dataiter = iter(data_loader)
+
 
     elif DATASET == 'CIFAR100':
         transform = transforms.Compose(
@@ -331,9 +315,9 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
                 )
 
         if include_id:
-            testset = IdCifar100(root='./data', train=training, download=True, transform=transform)
+            testset = IdCifar100(root='../data', train=training, download=True, transform=transform)
         else:
-            testset = datasets.CIFAR100(root='./data', train=training, download=True, transform=transform)
+            testset = datasets.CIFAR100(root='../data', train=training, download=True, transform=transform)
 
         test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
                 shuffle=shuffleIn, num_workers=workers, pin_memory=True)
@@ -364,8 +348,8 @@ def load_dataset(DATASET, BATCH_SIZE, workers=0, training=False, shuffleIn=False
 
 
 # total_data refers to the total size of the data_loader, for all images desired
-def load_custom_dataset(NETWORK, DATASET, BATCH_SIZE, good_images, total_data,
-                        workers = 0, random=True, replacement=True, single=False, singleIndex=0):
+def load_custom_dataset(NETWORK, DATASET, BATCH_SIZE, good_images, total_data, workers = 0, random=True, replacement=True, single=False, singleIndex=0):
+    
     if random:
         if replacement:
             if single == False:
@@ -386,7 +370,7 @@ def load_custom_dataset(NETWORK, DATASET, BATCH_SIZE, good_images, total_data,
                     ]
             )
 
-            testset = IdCifar10(root='./data', train=False,
+            testset = IdCifar10(root='../data', train=False,
                                                download=True, transform=transform)
             test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
                                             sampler=custom_sampler, num_workers=workers, pin_memory=True)
@@ -400,7 +384,7 @@ def load_custom_dataset(NETWORK, DATASET, BATCH_SIZE, good_images, total_data,
                     ]
             )
 
-            testset = IdCifar100(root='./data', train=False,
+            testset = IdCifar100(root='../data', train=False,
                                                download=True, transform=transform)
             test_loader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE,
                                             sampler=custom_sampler, num_workers=workers, pin_memory=True)
@@ -421,6 +405,21 @@ def load_custom_dataset(NETWORK, DATASET, BATCH_SIZE, good_images, total_data,
                     num_workers = workers, sampler=custom_sampler, pin_memory=True)
             dataiter = iter(val_loader)
 
+    if DATASET == 'COCO':
+        coco_data = dataloader.COCODataset(root="../data/mscoco/val2017",
+                                              annotation="../data/mscoco/annotations/instances_val2017.json",
+                                              transforms=dataloader.get_transform())
+        
+        data_loader = torch.utils.data.DataLoader(
+            coco_data,
+            batch_size = BATCH_SIZE,
+            num_workers = workers,
+            sampler=custom_sampler,
+            pin_memory=True,
+            pin_memory_device='cuda',
+            collate_fn = dataloader.collate_fn,
+        )
+        dataiter = iter(data_loader)
     return dataiter
 
 class IdCifar10(datasets.CIFAR10):
@@ -444,6 +443,7 @@ class IdCifar10(datasets.CIFAR10):
         self.data = []
         self.targets = []
         self.img_names = []
+        
         # now load the picked numpy arrays
         for file_name, checksum in downloaded_list:
             file_path = os.path.join(self.root, self.base_folder, file_name)
@@ -552,7 +552,6 @@ def get_custom_sampler_full(indices):
 
     return sampler
 
-
 #################################################################
 ############## HELPER METHODS FOR IMG PROCESSING  ###############
 #################################################################
@@ -580,7 +579,6 @@ def softmax(x):
 def diff_top2(data):
     return (data[0] - data[1]).item() * 100
 
-
 #################################################################
 ##################### HELPER METHODS FOR I/O ####################
 #################################################################
@@ -591,7 +589,6 @@ def save_data(path, file_name, data, compress = True):
     f = bz2.BZ2File(output + ".bz2","wb") if compress else open(fname,"wb")
     cPickle.dump(data, f)
     f.close()
-
 
 
 def load_file(file_name, compress = True):
@@ -627,4 +624,3 @@ def getNumSysName(name, bits=16, radix_up=5, radix_down=10, bias=None):
 
     else:
         sys.exit("Number format not supported")
-

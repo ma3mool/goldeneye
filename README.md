@@ -1,5 +1,5 @@
 <h1 align="center">
-    Goldeneye
+    GoldenBox
 </h1>
 
 <p align="center">
@@ -7,69 +7,34 @@
 </p>
 
 <p align="center">
-  <a href="#background">Background</a> •
-  <a href="#usage">Usage</a> •
+  <a href="#background">Overview</a> •
+  <a href="#Installing">Installing</a> •
   <a href="#code">Code</a> •
   <a href="#acknowledgements">Acknowledgements</a> •
-  <a href="#citation">Citation</a> •
+<!--   <a href="#citation">Citation</a> • -->
   <a href="#license">License</a>
 </p>
 
-## Background
+## Overview
 
-GoldenEye is a functional simulator with fault injection capabilities for common and emerging numerical formats, implemented for the PyTorch deep learning framework. GoldenEye provides a unified framework for numerical format evaluation of DNNs, including traditional number systems such as fixed and floating point, as well as recent DNN-inspired formats such as block floating point and AdaptivFloat. Additionally, GoldenEye enables single- and multi- bit flips at various logical and functional points during a value’s lifetime for resiliency analysis, including for the first time attention to numerical values’ hardware metadata. GoldenEye is an easy-to-use, extensible, versatile, and fast tool for dependability research and future DNN accelerator design.
-
-![](https://user-images.githubusercontent.com/89948656/176387208-cfd64047-3841-4abf-bf54-5d2e63f5a2e5.png)
-
-
-## Usage
-
-Take a look at our documentation [here](https://goldeneyedocs.readthedocs.io/en/stable/index.html).
+GoldenEye Object Detection is an extension of the original [GoldenEye](https://github.com//ma3mool/goldeneye) functional simulator with fault injection capabilities for common and emerging numerical formats. Previously the simulator was only supported image classification models. Now, we have extended our use case to object detection models as well.
 
 ### Installing
 
-**Ubuntu with Sudo Privileges**
-1. Recursively clone the goldeneye repository.
+**Ubuntu-20.04 or later**
+1. Clone the goldeneye repository.
 ```bash
-git clone --recurse-submodules git@github.com:ma3mool/goldeneye.git
+git clone https://github.com/sajidahmed12/goldeneye-object-detection
 ```
 
-2. Download ninja-build which is needed for qtorch.
+2. Download ninja-build, which is needed for qtorch.
 ```bash
 sudo apt install ninja-build
 ```
 
-3. Download the other project dependencies. Please make sure you are inside the goldeneye folder when applying this command.
+3. Install the other project dependencies from the requirements.txt file.
 ```bash
 pip install -r requirements.txt
-```
-
-4. Setup environment variable (replace with the directory where the imagenet dataset is downloaded).
-```bash
-ML_DATASETS=/dir/to/imagenet/
-```
-
-**Docker**
-1. Recursively clone the goldeneye repository.
-```bash
-git clone --recurse-submodules git@github.com:ma3mool/goldeneye.git
-```
-
-2. Pull the goldeneye docker image and rename it to simply the next steps
-```bash
-docker pull goldeneyetool/goldeneye:latest
-docker image tag goldeneyetool/goldeneye goldeneye
-```
-
-3. Within the goldeneye folder, run the shell on the pulled docker image. Make sure to replace [/path/to/imagenet] with the actual path to your downloaded imagenet dataset.
-```bash
-cd goldeneye
-docker run -ti 
-    --mount type=bind,source=`pwd`/src/,target=/src 
-    --mount type=bind,source=`pwd`/val/,target=/val 
-    --mount type=bind,source=`pwd`/scripts/,target=/scripts 
-    --mount type=bind,source=[/path/to/imagenet],target=/datasets/imagenet 
-    goldeneye
 ```
 
 ### Testing
@@ -81,30 +46,42 @@ pytest val/test_num_sys.py
 ## Code
 
 ### Structure
-The ```scripts``` folder includes wrappers around the goldeneye framework to simplify its use. The ```src``` folder contains all of the goldeneye core logic such as number system implementation and error injection routines. The ```val``` folder is used for unit-testing the code. You can run it using pytest to check that the installation process was successful.
+The ```scripts``` folder includes wrappers around the goldeneye-obj framework to simplify its use. The ```src``` folder contains all of the core components, such as number system implementation, error injection routines, dataloaders, etc. The ```val``` folder is used for unit testing the code. You can run it using pytest to check that the installation process was successful.
+
+
+
+Example Outputs are saved in this Google Drive [link](https://drive.google.com/drive/folders/1nP0pavu3vprPc9EvuahkF9UsETDlwFEp?usp=sharing)
+
+## Example Commands 
+
+Pre-processing 
+```
+python preprocess.py -b 16 -n frcnn -d COCO -w 8 -P FP32 -f fp_n  -C 0 [MS-COCO FP32](MS-COCO FP32])
+```
+
+Profiling
+```
+python profiling.py -b 16 -n frcnn -d COCO -w 16 -P FP32 -f fp_n -B 32 -R 23
+```
+
+Split Data
+```
+python split_data.py -b 16 -n frcnn -d COCO -o -w 16 -P FP32 -f fp_n -B 32 -R 23
+```
+
+Error Injections
+```
+python injections.py -b 16 -n frcnn -d COCO -w 16 -P FP32 -i 102400 -I 1 -f fp_n -B 32 -R 23
+```
+
+Post-processing 
+```
+python postprocess.py -b 16 -n frcnn -d COCO -w 16 -P FP32 -i 102400 -I 1 -f fp_n -B 32 -R 23
+```
 
 ## Acknowledgements
 
-- Tarek Aloui (Harvard)
-- David Brooks (Harvard)
-- Abdulrahman Mahmoud (Harvard)
-- Joshua Park (Harvard)
-- Thierry Tambe (Harvard)
-- Gu-Yeon Wei (Harvard)
-
-## Citation
-
-If you use or reference Goldeneye, please cite:
-
-```
-@INPROCEEDINGS{GoldeneyeMahmoudTambeDSN2022,
-author={A. {Mahmoud} and T. {Tambe} and T. {Aloui} and D. {Brooks} and G. {Wei}},
-booktitle={2022 52nd Annual IEEE/IFIP International Conference on Dependable Systems and Networks (DSN)},
-title={GoldenEye:  A Platform for Evaluating Emerging Data Formats in DNN Accelerators},
-year={2022},
-}
-```
+- This Repository was forked from [Goldeneye](https://github.com/ma3mool/goldeneye/) developed and maintained by [Sajid Ahmed](https://sajidahmed12.github.io) & [Dr. Abdulrahman Mahmoud](https://ma3mool.github.io/)
 
 ## License
-
 <a href="LICENSE">MIT License</a>
