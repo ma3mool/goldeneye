@@ -92,13 +92,19 @@ if __name__ == "__main__":
 
     # load important info: ranges, mapping, good images
     ranges = load_file(range_path + "ranges_trainset_layer")
+    # ranges =
+    # print(ranges)
     print(data_subset_path + image_set)
     good_img_set = load_file(data_subset_path + image_set)
 
     # constants
     total_layers = len(ranges)
     total_inferences = getInjections() * total_layers
-
+    #  3.4028237 × 1038
+    #ranges
+    # ranges=[sys.float_info.max] * total_layers
+    ranges=[ 65536] * total_layers
+    print(ranges)
     # Use custom data loader
     dataiter = load_custom_dataset(
         getDNN(),

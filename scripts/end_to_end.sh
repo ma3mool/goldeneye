@@ -87,6 +87,7 @@ fi
 
 # profiling
 echo -n "Profiling ... "
+echo "$GOLDEN_FILE"
 if [[ ! -f "$GOLDEN_FILE" ]]
 then
     python3 ${SCRIPT2} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
