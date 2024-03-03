@@ -104,7 +104,7 @@ if __name__ == "__main__":
     #ranges
     # ranges=[sys.float_info.max] * total_layers
     ranges=[ 65536] * total_layers
-    print(ranges)
+    # print(ranges)
     # Use custom data loader
     dataiter = load_custom_dataset(
         getDNN(),
