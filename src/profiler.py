@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
         # quantization
         quant=quant_en,
-        layer_max=ranges,
+        layer_ranges=ranges,
         bits=getBitwidth(),
         qsigned=True,
 

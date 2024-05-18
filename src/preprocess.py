@@ -101,7 +101,22 @@ if __name__ == '__main__':
         debug=getDebug(),
         verbose=getVerbose(),
     )
-    ranges = actual_max.cpu().numpy().tolist()
+
+    if getSymmetricRanges_en() == True:
+        # symmetric range: set ranges to [-max, max]
+        ranges = actual_max.cpu().numpy().tolist()
+    else:
+        # asymmetric range: set ranges to [-max, max]
+        min_vals = layer_min.cpu().numpy().tolist()
+        max_vals = layer_max.cpu().numpy().tolist()
+
+        #assymetric range collation
+        ranges = []
+        for layer in range(len(min_vals)):
+            temp_tuple = (min_vals[layer], max_vals[layer])
+            ranges.append(temp_tuple)
+        assert len(ranges) == len(min_vals)
+
 
     # save result
     save_data(out_path, "ranges_trainset_layer", ranges)
@@ -109,6 +124,11 @@ if __name__ == '__main__':
     # save CSV
     f = open(out_path + "ranges_trainset_layer.csv", "w+")
     for i in range(len(ranges)):
-        outputString = "%d, %f\n" % (i, ranges[i])
-        f.write(outputString)
+        if getSymmetricRanges_en() == True:
+            outputString = "%d, %f\n" % (i, ranges[i])
+            f.write(outputString)
+        else:
+            outputString = "%d, %f, %f\n" % (i, ranges[i][0], ranges[i][1])
+            f.write(outputString)
+
     f.close()

@@ -25,6 +25,7 @@ BIAS="" # leave empty, or include the flag with the number: "-a -8" | ""
 QUANT="" # -q leave empty if you do not want quantization
 #BIT_FLIP="-e" # -e leave empty if you do not want bit flip model. NOTE: -q MUST BE ENABLED TOO WITH THIS
 TRAINSET="" # -r. leave empty if using testset
+RANGEDETECTOR="" # -s leave empty for asymetric range detectors. Enable for symmetric range detectors
 WORKERS=12
 
 INJECTIONS=1024 #${BATCH}
@@ -73,7 +74,7 @@ echo "!===================================!"
 echo -n "Preprocessing ... "
 if [[ ! -f "$RANGES_FILE" ]]
 then
-    python3 ${SCRIPT1} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT}
+    python3 ${SCRIPT1} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} ${RANGEDETECTOR}
     echo "Complete!"
 else
     echo "Skipped."
@@ -83,8 +84,8 @@ fi
 echo -n "Profiling ... "
 if [[ ! -f "$GOLDEN_FILE" ]]
 then
-    python3 ${SCRIPT2} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
-    python3 ${SCRIPT3} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
+    python3 ${SCRIPT2} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT} ${RANGEDETECTOR}
+    python3 ${SCRIPT3} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT} ${RANGEDETECTOR}
     echo "Complete!"
 else
     echo "Skipped."
@@ -96,11 +97,11 @@ echo "Error Injection Campaign ... "
 #echo
 #if [[ $REPLY =~ ^[Yy]$ ]]
 #then
-python3 ${SCRIPT4} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
-#python3 ${SCRIPT4} -b 1 -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
+python3 ${SCRIPT4} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT} ${RANGEDETECTOR}
+#python3 ${SCRIPT4} -b 1 -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -I ${INJECTIONS_LOC} -f ${FORMAT}  -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT} ${RANGEDETECTOR}
 #fi
 
 # postprocessing
 echo -n "Postprocessing ... "
-python3 ${SCRIPT5} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
+python3 ${SCRIPT5} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT} ${RANGEDETECTOR}
 echo -n "Done! "

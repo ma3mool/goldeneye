@@ -35,6 +35,7 @@ bias_in = None
 workers_in = -1
 training_in = False
 quantize_in = False
+symmetricRanges_in = False
 # singlebitflip_in = False
 verbose_in = False
 debug_in = False
@@ -112,6 +113,14 @@ def check_args(args=None):
                         const=True,
                         default=False)
 
+    parser.add_argument('-s', '--symmetricRanges',
+                        help = 'When set to True, symmetric Range Detectors are used. Else, asymmetric Range Detectors are used.',
+                        type = str2bool,
+                        nargs = '?',
+                        const = True,
+                        default = False)
+
+
     parser.add_argument('-w', '--workers',
                         help='Number of workers for dataloader',
                         type=int,
@@ -149,7 +158,7 @@ def check_args(args=None):
 
     global batchsize_in, dnn_in, dataset_in, format_in, precision_in, output_in, cuda_in, \
         bitwidth_in, radix_in, bias_in, \
-        injections_in, injectionsLoc_in, training_in, workers_in, quantize_in, \
+        injections_in, injectionsLoc_in, training_in, workers_in, quantize_in, symmetricRanges_in, \
         verbose_in, debug_in
     # global singlebitflip_in
 
@@ -166,6 +175,7 @@ def check_args(args=None):
     bitwidth_in = results.bitwidth
     bias_in = results.bias
     training_in = results.training
+    symmetricRanges_in = results.symmetricRanges
     workers_in = results.workers
     quantize_in = results.quantize
     # singlebitflip_in = results.errormodel
@@ -197,6 +207,7 @@ def getWorkers(): return workers_in
 def getQuantize_en(): return quantize_in
 # def getQuantizeBits(): return QUANTIZE_BITS
 # def getSingleBitFlip_en(): return singlebitflip_in
+def getSymmetricRanges_en(): return symmetricRanges_in
 def getVerbose(): return verbose_in
 def getDebug(): return debug_in
 

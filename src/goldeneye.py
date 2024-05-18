@@ -19,7 +19,7 @@ class goldeneye(core.fault_injection):
         precision="FP32",
         num_sys=None,
         quant=False,
-        layer_max=[],
+        layer_ranges=[],
         inj_order=0,
         **kwargs
     ):
@@ -35,9 +35,15 @@ class goldeneye(core.fault_injection):
         )
 
         # Golden eye specific
-        self.LayerRanges = layer_max
+        self.LayerRanges = []
+        self.LayerRangesMax = []
+        self.LayerRangesMin = []
         self.inj_order = inj_order
         self.precision = precision
+
+        # for range detectors
+        self.set_layer_ranges(layer_ranges)
+
 
         # for simulated number system
         (self.num_sys, self.num_sys_name) = num_sys
@@ -52,14 +58,27 @@ class goldeneye(core.fault_injection):
         # the order of injecting within the goldeneye transformation
         # 0 -> no injection, 1 -> between quantization and de-quantization, 2 -> after converting to the number system, 3 -> after dequantization, 4 -> after converting num sys
 
-    def set_layer_max(self, data):
+    def set_layer_ranges(self, data):
+        if isinstance(data[0], tuple):
+            # asymmetric
+            self.LayerRangesMin = [tup[0] for tup in data]
+            self.LayerRangesMax = [tup[1] for tup in data]
+        else:
+            # symmetric
+            self.LayerRangesMin = [-1 * x for x in data]
+            self.LayerRangesMax = data
         self.LayerRanges = data
 
-    def reset_layer_max(self, data):
+    def reset_layer_ranges(self, data):
+        self.LayerRangesMin = []
+        self.LayerRangesMax = []
         self.LayerRanges = []
 
     def get_layer_max(self, layer):
-        return self.LayerRanges[layer]
+        return self.LayerRangesMax[layer]
+
+    def get_layer_min(self, layer):
+        return self.LayerRangesMin[layer]
 
     def _twos_comp_shifted(self, val, nbits):
         if val < 0:
