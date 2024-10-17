@@ -282,7 +282,7 @@ def getNetwork(networkName, DATASET):
 
     elif DATASET == 'CIFAR10' or DATASET == 'CIFAR100':
         if networkName == "resnet18":
-            MODEL = resnet.resnet18(pretrained=True)
+            MODEL = models.resnet18(pretrained=True, progress=True)
         elif networkName == "vgg19_bn":
             MODEL = vgg.vgg19_bn(pretrained=True)
         elif networkName == "cifar10_nn_baseline":
