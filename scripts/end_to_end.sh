@@ -8,13 +8,14 @@ FORMAT=${4}  #"fp_n"    # simulated format
 BITWIDTH=${5}   #32
 RADIX=${6}      #23
 INJECTIONS_LOC=${7}  # {0, no injection}. {1: value} or {2, META}
+WORKERS=${8} #16
 
 
 OUTPUT_PATH="../output/"
 SRC_PATH="../src/"
 LOG_PATH="./log/"
 SCRIPT1="../src/preprocess.py"
-SCRIPT2="../src/profile.py"
+SCRIPT2="../src/profile_model.py"
 SCRIPT3="../src/split_data.py"
 SCRIPT4="../src/injections.py"
 SCRIPT5="../src/postprocess.py"
@@ -25,7 +26,7 @@ BIAS="" # leave empty, or include the flag with the number: "-a -8" | ""
 QUANT="" # -q leave empty if you do not want quantization
 #BIT_FLIP="-e" # -e leave empty if you do not want bit flip model. NOTE: -q MUST BE ENABLED TOO WITH THIS
 TRAINSET="" # -r. leave empty if using testset
-WORKERS=16
+#WORKERS=16
 
 INJECTIONS=102400 #${BATCH}
 #INJECTIONS_LOC=1  # {0, no injection}. {1: value} or {2, META}
@@ -102,5 +103,5 @@ python3 ${SCRIPT4} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${T
 
 # postprocessing
 echo -n "Postprocessing ... "
-python3 ${SCRIPT5} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} ${BIAS} ${QUANT}
+python3 ${SCRIPT5} -b ${BATCH} -n ${NETWORK} -d ${DATASET} -o ${OUTPUT_PATH} ${TRAINSET} ${VERBOSE} ${DEBUG} -w ${WORKERS} -P ${PRECISION} -i ${INJECTIONS} -f ${FORMAT} -B ${BITWIDTH} -R ${RADIX} -I ${INJECTIONS_LOC} ${BIAS} ${QUANT}
 echo -n "Done! "

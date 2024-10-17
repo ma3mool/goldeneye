@@ -6,7 +6,7 @@ network=${1}
 dataset=${2}
 batchsize=${3}
 
-time ${script} ${network} ${dataset} ${batchsize} fp32 32 23  1               #2&> ./log/alexnet.log
+time ${script} ${network} ${dataset} ${batchsize} fp32 32 23  1 8              #2&> ./log/alexnet.log
 
 #time ${script} ${dataset} ${network} ${batchsize} block_fp 12 7  1               #2&> ./log/alexnet.log
 #time ${script} ${dataset} ${network} ${batchsize} adaptive_fp 8 3 1               #2&> ./log/alexnet.log

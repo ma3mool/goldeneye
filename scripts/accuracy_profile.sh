@@ -6,13 +6,14 @@ BATCH=${2} #128
 FORMAT=${3}    # simulated format
 BITWIDTH=${4}
 RADIX=${5}
+WORKERS=${6} # 16
 
 DATASET="IMAGENET"
 OUTPUT_PATH="../output/"
 SRC_PATH="../src/"
 LOG_PATH="./log/"
 SCRIPT1="../src/preprocess.py"
-SCRIPT2="../src/profile.py"
+SCRIPT2="../src/profile_model.py"
 SCRIPT3="../src/split_data.py"
 SCRIPT4="../src/injections.py"
 SCRIPT5="../src/postprocess.py"
@@ -23,7 +24,7 @@ PRECISION="FP32" # compute fabric
 QUANT="" # -q leave empty if you do not want quantization
 #BIT_FLIP="-e" # -e leave empty if you do not want bit flip model. NOTE: -q MUST BE ENABLED TOO WITH THIS
 TRAINSET="" # -r. leave empty if using testset
-WORKERS=16
+#WORKERS=16
 
 if [[ ${FORMAT} -eq "INT" ]]
 then

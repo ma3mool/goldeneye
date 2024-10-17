@@ -170,7 +170,7 @@ if __name__ == "__main__":
             pbar.update(samples)
 
             # prep images
-            images, labels, img_ids, index = dataiter.next()
+            images, labels, img_ids, index = next(dataiter)
             if getCUDA_en():
                 labels = labels.cuda()
                 images = images.cuda()
