@@ -280,22 +280,23 @@ def getNetwork(networkName, DATASET):
             sys.exit("Network does not exist")
 
     elif DATASET == 'CIFAR10' or DATASET == 'CIFAR100':
-        from othermodels import resnet, vgg, cifar10_nn
-
         if networkName == "resnet18":
             MODEL = models.resnet18(pretrained=True, progress=True)
-        elif networkName == "vgg19_bn":
-            MODEL = vgg.vgg19_bn(pretrained=True)
-        elif networkName == "cifar10_nn_baseline":
-            MODEL = cifar10_nn.baseline(pretrained=True, output_size=getNumClasses(DATASET))
-        elif networkName == "cifar10_nn_v1":
-            MODEL = cifar10_nn.v1(pretrained=True, output_size=getNumClasses(DATASET))
-        elif networkName == "cifar10_nn_v2":
-            MODEL = cifar10_nn.v2(pretrained=True, output_size=getNumClasses(DATASET))
-
-        # Error
         else:
-            sys.exit("Network does not exist")
+            from othermodels import vgg, cifar10_nn
+
+            if networkName == "vgg19_bn":
+                MODEL = vgg.vgg19_bn(pretrained=True)
+            elif networkName == "cifar10_nn_baseline":
+                MODEL = cifar10_nn.baseline(pretrained=True, output_size=getNumClasses(DATASET))
+            elif networkName == "cifar10_nn_v1":
+                MODEL = cifar10_nn.v1(pretrained=True, output_size=getNumClasses(DATASET))
+            elif networkName == "cifar10_nn_v2":
+                MODEL = cifar10_nn.v2(pretrained=True, output_size=getNumClasses(DATASET))
+
+            # Error
+            else:
+                sys.exit("Network does not exist")
 
     # model upgrades
     if getCUDA_en():
