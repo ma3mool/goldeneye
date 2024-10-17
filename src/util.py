@@ -10,7 +10,6 @@ import torchvision.models as models
 import timm
 import numpy as np
 from num_sys_class import *
-from othermodels import resnet, vgg, cifar10_nn
 
 '''
 Environment Variables
@@ -281,6 +280,8 @@ def getNetwork(networkName, DATASET):
             sys.exit("Network does not exist")
 
     elif DATASET == 'CIFAR10' or DATASET == 'CIFAR100':
+        from othermodels import resnet, vgg, cifar10_nn
+
         if networkName == "resnet18":
             MODEL = models.resnet18(pretrained=True, progress=True)
         elif networkName == "vgg19_bn":
