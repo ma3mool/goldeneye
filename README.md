@@ -25,6 +25,7 @@ GoldenEye is a functional simulator with fault injection capabilities for common
 ## Usage
 
 Take a look at our documentation [here](https://goldeneyedocs.readthedocs.io/en/stable/index.html).
+Check this [Colab notebook](https://colab.research.google.com/drive/1Om-Wg6wLOeaAKRWaDcpjoZZdF1LwXcCI) for a demo.
 
 ### Installing
 
